@@ -112,6 +112,7 @@ export default function MealPlan() {
   };
 
   const handleDeleteEntry = (e: React.MouseEvent, id: number) => {
+    e.preventDefault();
     e.stopPropagation();
     deleteEntry.mutate(
       { id },
