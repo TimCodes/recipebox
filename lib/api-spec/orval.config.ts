@@ -57,9 +57,10 @@ export default defineConfig({
       prettier: true,
       override: {
         zod: {
+          version: 3,
           coerce: {
-            query: ['boolean', 'number', 'string'],
-            param: ['boolean', 'number', 'string'],
+            query: ['boolean', 'number', 'string', 'date'],
+            param: ['boolean', 'number', 'string', 'date'],
             body: ['bigint', 'date'],
             response: ['bigint', 'date'],
           },

@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Meal Planner"
+description = "A personal meal planning app for home cooks: keep a recipe box, build weekly meal plans by assigning recipes to days and meal slots, and get an automatically generated, categorized grocery list for the week."
+version = "1.0.0"
+id = "artifacts/meal-planner"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23479
+
+[services.development]
+run = "pnpm --filter @workspace/meal-planner run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/meal-planner", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/meal-planner/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23479"
+BASE_PATH = "/"

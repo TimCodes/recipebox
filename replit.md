@@ -1,36 +1,52 @@
-# [Project name]
+# Kitchen Notebook
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A personal meal-planning app: a recipe box, a weekly meal plan builder, and an auto-generated grocery list.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server
+- `pnpm --filter @workspace/meal-planner run dev` — run the web frontend
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
+- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec (run this after editing `lib/api-spec/openapi.yaml`)
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
+- API: Express 5, mounted under `/api` (artifact `artifacts/api-server`)
+- Frontend: React + Vite, mounted at `/` (artifact `artifacts/meal-planner`)
 - DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Validation: Zod, `drizzle-zod`
+- API codegen: Orval (react-query hooks + Zod schemas generated from `lib/api-spec/openapi.yaml`)
+- Build: esbuild (CJS bundle) for the API server
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `lib/api-spec/openapi.yaml` — source-of-truth API contract (recipes, meal-plan, grocery-list, dashboard)
+- `lib/api-spec/orval.config.ts` — codegen config
+- `lib/api-client-react/src/generated/` — generated react-query hooks + TS types (import from `@workspace/api-client-react`, not deep `/src/generated/...` paths — the package only exports its root)
+- `lib/api-zod/src/generated/` — generated Zod schemas for request/response validation
+- `lib/db/src/schema/` — Drizzle schema: `recipes.ts`, `meal-plan-entries.ts`, `grocery-list-items.ts`
+- `artifacts/api-server/src/routes/` — Express route handlers (recipes, meal-plan, grocery-list, dashboard)
+- `artifacts/api-server/src/lib/` — `date.ts` (Date → "YYYY-MM-DD" string helper), `recipe-summary.ts`, `grocery.ts` (grocery list regeneration logic)
+- `artifacts/meal-planner/src/pages/` — dashboard, recipes-list, recipe-detail, recipe-form, meal-plan, grocery-list
+- `artifacts/meal-planner/public/images/` — seeded recipe photos (generated images, referenced by `photoUrl` as `/images/*.jpg`)
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Recipe ingredients are stored as a JSON array on the `recipes` row (no separate ingredients table). Grocery list aggregation only sums ingredients across the week's planned recipes when name (case-insensitive) and unit match exactly — no unit conversion.
+- No object storage / file upload for recipe photos — `photoUrl` is just a string field; seed data points at static files served from `artifacts/meal-planner/public/images/`.
+- Grocery list "auto" items are fully regenerated from the week's meal plan on each `/grocery-list/generate` call (stale auto items deleted, `checked` state preserved when name+unit still match); "manual" items are left untouched.
+- Dates (`date`, `weekStart`, `startDate`/`endDate` query params) are stored as Drizzle `date(mode:"string")` columns but generated Zod schemas coerce them to JS `Date` objects — route handlers must convert back to `"YYYY-MM-DD"` via `toDateString()` before writing to the DB.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- **Dashboard** (`/`) — this week's meal count, recipe count, grocery progress, today's planned meals, recently added recipes.
+- **Recipe Box** (`/recipes`, `/recipes/:id`, `/recipes/new`) — searchable/taggable recipe collection with full CRUD.
+- **Meal Plan** (`/meal-plan`) — weekly grid (breakfast/lunch/dinner slots × 7 days), assign recipes per slot, week navigation.
+- **Grocery List** (`/grocery-list`) — categorized checklist, auto-synced from the week's meal plan or manually appended, per-item checked state.
 
 ## User preferences
 
@@ -38,7 +54,10 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Always import from `@workspace/api-client-react` (the package root) — deep imports like `@workspace/api-client-react/src/generated/api.schemas` are not in its `exports` map and will fail to resolve in Vite.
+- API response `date` fields serialize as full ISO datetime strings (e.g. `"2026-08-10T00:00:00.000Z"`). When comparing against a `"yyyy-MM-dd"` string in the frontend, use `.slice(0, 10)` (or parse both sides) rather than `===`.
+- `DashboardSummary` is not a Zod export from `@workspace/api-zod` — use `GetDashboardSummaryResponse` for response validation in the dashboard route.
+- After changing `lib/api-spec/openapi.yaml`, always re-run `pnpm --filter @workspace/api-spec run codegen` before touching frontend or backend code that consumes the new shape.
 
 ## Pointers
 

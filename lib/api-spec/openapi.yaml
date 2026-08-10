@@ -10,6 +10,14 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: recipes
+    description: Recipe management
+  - name: mealPlan
+    description: Weekly meal plan entries
+  - name: groceryList
+    description: Grocery list items
+  - name: dashboard
+    description: Home dashboard summary
 paths:
   /healthz:
     get:
@@ -24,6 +32,359 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /recipes:
+    get:
+      operationId: listRecipes
+      tags: [recipes]
+      summary: List / search recipes
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema: { type: string }
+          description: Case-insensitive match against title, tags, and ingredient names
+        - name: tag
+          in: query
+          required: false
+          schema: { type: string }
+          description: Filter to recipes containing this exact tag
+      responses:
+        "200":
+          description: List of recipes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Recipe"
+    post:
+      operationId: createRecipe
+      tags: [recipes]
+      summary: Create a recipe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecipeInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Recipe"
+
+  /recipes/tags:
+    get:
+      operationId: listRecipeTags
+      tags: [recipes]
+      summary: List distinct tags across all recipes
+      responses:
+        "200":
+          description: Distinct tag list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { type: string }
+
+  /recipes/{id}:
+    get:
+      operationId: getRecipe
+      tags: [recipes]
+      summary: Get a recipe by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Recipe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Recipe"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateRecipe
+      tags: [recipes]
+      summary: Update a recipe
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecipeUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Recipe"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteRecipe
+      tags: [recipes]
+      summary: Delete a recipe
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /meal-plan:
+    get:
+      operationId: listMealPlanEntries
+      tags: [mealPlan]
+      summary: List meal plan entries in a date range
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: endDate
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Meal plan entries in range
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MealPlanEntry"
+    post:
+      operationId: createMealPlanEntry
+      tags: [mealPlan]
+      summary: Assign a recipe to a day/slot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MealPlanEntryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MealPlanEntry"
+        "404":
+          description: Recipe not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /meal-plan/{id}:
+    patch:
+      operationId: updateMealPlanEntry
+      tags: [mealPlan]
+      summary: Update a meal plan entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MealPlanEntryUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MealPlanEntry"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteMealPlanEntry
+      tags: [mealPlan]
+      summary: Remove a meal plan entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /grocery-list:
+    get:
+      operationId: listGroceryListItems
+      tags: [groceryList]
+      summary: List grocery list items for a week
+      parameters:
+        - name: weekStart
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          description: Monday date (YYYY-MM-DD) identifying the week
+      responses:
+        "200":
+          description: Grocery list items for the week
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroceryListItem"
+    post:
+      operationId: createGroceryListItem
+      tags: [groceryList]
+      summary: Manually add a grocery list item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroceryListItemInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroceryListItem"
+
+  /grocery-list/generate:
+    post:
+      operationId: generateGroceryList
+      tags: [groceryList]
+      summary: (Re)generate the auto grocery list from a week's meal plan
+      description: >
+        Aggregates ingredients from all recipes assigned in the given week into
+        categorized auto-generated items, preserving checked state where the
+        same item persists and removing stale auto items no longer needed.
+        Manually added items are left untouched.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateGroceryListInput"
+      responses:
+        "200":
+          description: Full grocery list for the week after regeneration
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroceryListItem"
+
+  /grocery-list/{id}:
+    patch:
+      operationId: updateGroceryListItem
+      tags: [groceryList]
+      summary: Update a grocery list item (e.g. toggle checked)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroceryListItemUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroceryListItem"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteGroceryListItem
+      tags: [groceryList]
+      summary: Remove a grocery list item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /dashboard:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Home dashboard summary for a given week
+      parameters:
+        - name: weekStart
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +395,233 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+
+    IngredientCategory:
+      type: string
+      enum:
+        - produce
+        - dairy
+        - meat_seafood
+        - bakery
+        - pantry
+        - frozen
+        - beverages
+        - spices
+        - other
+
+    MealSlot:
+      type: string
+      enum: [breakfast, lunch, dinner, snack]
+
+    Ingredient:
+      type: object
+      required: [name, category]
+      properties:
+        name: { type: string, minLength: 1 }
+        quantity: { type: ["number", "null"] }
+        unit: { type: ["string", "null"] }
+        category:
+          $ref: "#/components/schemas/IngredientCategory"
+
+    Recipe:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - ingredients
+        - instructions
+        - servings
+        - prepMinutes
+        - cookMinutes
+        - tags
+        - photoUrl
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        description: { type: ["string", "null"] }
+        ingredients:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ingredient"
+        instructions: { type: string }
+        servings: { type: ["integer", "null"] }
+        prepMinutes: { type: ["integer", "null"] }
+        cookMinutes: { type: ["integer", "null"] }
+        tags:
+          type: array
+          items: { type: string }
+        photoUrl: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    RecipeInput:
+      type: object
+      required: [title, ingredients, instructions]
+      properties:
+        title: { type: string, minLength: 1 }
+        description: { type: string }
+        ingredients:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ingredient"
+        instructions: { type: string, minLength: 1 }
+        servings: { type: integer, minimum: 1 }
+        prepMinutes: { type: integer, minimum: 0 }
+        cookMinutes: { type: integer, minimum: 0 }
+        tags:
+          type: array
+          items: { type: string }
+        photoUrl: { type: string }
+
+    RecipeUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1 }
+        description: { type: ["string", "null"] }
+        ingredients:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ingredient"
+        instructions: { type: string, minLength: 1 }
+        servings: { type: ["integer", "null"], minimum: 1 }
+        prepMinutes: { type: ["integer", "null"], minimum: 0 }
+        cookMinutes: { type: ["integer", "null"], minimum: 0 }
+        tags:
+          type: array
+          items: { type: string }
+        photoUrl: { type: ["string", "null"] }
+
+    RecipeSummary:
+      type: object
+      required: [id, title, photoUrl, servings, prepMinutes, cookMinutes, tags]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        photoUrl: { type: ["string", "null"] }
+        servings: { type: ["integer", "null"] }
+        prepMinutes: { type: ["integer", "null"] }
+        cookMinutes: { type: ["integer", "null"] }
+        tags:
+          type: array
+          items: { type: string }
+
+    MealPlanEntry:
+      type: object
+      required: [id, date, mealSlot, servings, recipe, createdAt]
+      properties:
+        id: { type: integer }
+        date: { type: string, format: date }
+        mealSlot:
+          $ref: "#/components/schemas/MealSlot"
+        servings: { type: ["integer", "null"] }
+        recipe:
+          $ref: "#/components/schemas/RecipeSummary"
+        createdAt: { type: string, format: date-time }
+
+    MealPlanEntryInput:
+      type: object
+      required: [date, mealSlot, recipeId]
+      properties:
+        date: { type: string, format: date }
+        mealSlot:
+          $ref: "#/components/schemas/MealSlot"
+        recipeId: { type: integer }
+        servings: { type: integer, minimum: 1 }
+
+    MealPlanEntryUpdate:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        mealSlot:
+          $ref: "#/components/schemas/MealSlot"
+        recipeId: { type: integer }
+        servings: { type: ["integer", "null"], minimum: 1 }
+
+    GroceryListItemSource:
+      type: string
+      enum: [auto, manual]
+
+    GroceryListItem:
+      type: object
+      required:
+        - id
+        - weekStart
+        - name
+        - quantity
+        - unit
+        - category
+        - checked
+        - source
+        - createdAt
+      properties:
+        id: { type: integer }
+        weekStart: { type: string, format: date }
+        name: { type: string }
+        quantity: { type: ["number", "null"] }
+        unit: { type: ["string", "null"] }
+        category:
+          $ref: "#/components/schemas/IngredientCategory"
+        checked: { type: boolean }
+        source:
+          $ref: "#/components/schemas/GroceryListItemSource"
+        createdAt: { type: string, format: date-time }
+
+    GroceryListItemInput:
+      type: object
+      required: [weekStart, name, category]
+      properties:
+        weekStart: { type: string, format: date }
+        name: { type: string, minLength: 1 }
+        quantity: { type: number }
+        unit: { type: string }
+        category:
+          $ref: "#/components/schemas/IngredientCategory"
+
+    GroceryListItemUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        quantity: { type: ["number", "null"] }
+        unit: { type: ["string", "null"] }
+        category:
+          $ref: "#/components/schemas/IngredientCategory"
+        checked: { type: boolean }
+
+    GenerateGroceryListInput:
+      type: object
+      required: [weekStart]
+      properties:
+        weekStart: { type: string, format: date }
+
+    DashboardSummary:
+      type: object
+      required:
+        - weekStart
+        - recipeCount
+        - mealsPlannedThisWeek
+        - groceryItemCount
+        - groceryCheckedCount
+        - recentRecipes
+        - todayEntries
+      properties:
+        weekStart: { type: string, format: date }
+        recipeCount: { type: integer }
+        mealsPlannedThisWeek: { type: integer }
+        groceryItemCount: { type: integer }
+        groceryCheckedCount: { type: integer }
+        recentRecipes:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecipeSummary"
+        todayEntries:
+          type: array
+          items:
+            $ref: "#/components/schemas/MealPlanEntry"
