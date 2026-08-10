@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  ClearGroceryListParams,
   DashboardSummary,
   ErrorResponse,
   GenerateGroceryListInput,
@@ -1269,6 +1270,84 @@ export const useCreateGroceryListItem = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateGroceryListItemMutationOptions(options));
+    }
+
+export const getClearGroceryListUrl = (params: ClearGroceryListParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/grocery-list?${stringifiedParams}` : `/api/grocery-list`
+}
+
+/**
+ * @summary Remove every grocery list item for a week
+ */
+export const clearGroceryList = async (params: ClearGroceryListParams, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getClearGroceryListUrl(params),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getClearGroceryListMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clearGroceryList>>, TError,{params: ClearGroceryListParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof clearGroceryList>>, TError,{params: ClearGroceryListParams}, TContext> => {
+
+const mutationKey = ['clearGroceryList'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof clearGroceryList>>, {params: ClearGroceryListParams}> = (props) => {
+          const {params} = props ?? {};
+
+          return  clearGroceryList(params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClearGroceryListMutationResult = NonNullable<Awaited<ReturnType<typeof clearGroceryList>>>
+
+    export type ClearGroceryListMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove every grocery list item for a week
+ */
+export const useClearGroceryList = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clearGroceryList>>, TError,{params: ClearGroceryListParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof clearGroceryList>>,
+        TError,
+        {params: ClearGroceryListParams},
+        TContext
+      > => {
+      return useMutation(getClearGroceryListMutationOptions(options));
     }
 
 export const getGenerateGroceryListUrl = () => {

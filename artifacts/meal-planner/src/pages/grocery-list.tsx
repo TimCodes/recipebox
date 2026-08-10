@@ -5,6 +5,7 @@ import {
   useUpdateGroceryListItem, 
   useDeleteGroceryListItem,
   useGenerateGroceryList,
+  useClearGroceryList,
   getListGroceryListItemsQueryKey
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,6 +24,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 // Group items by category
 const CATEGORY_ORDER = [
@@ -62,6 +74,7 @@ export default function GroceryList() {
   const updateItem = useUpdateGroceryListItem();
   const deleteItem = useDeleteGroceryListItem();
   const createItem = useCreateGroceryListItem();
+  const clearList = useClearGroceryList();
 
   const [newItemName, setNewItemName] = useState('');
   const [newItemCategory, setNewItemCategory] = useState<IngredientCategory>(IngredientCategory.produce);
@@ -109,6 +122,13 @@ export default function GroceryList() {
     queryClient.invalidateQueries({ queryKey: getListGroceryListItemsQueryKey({ weekStart }) });
   };
 
+  const handleClearAll = () => {
+    clearList.mutate(
+      { params: { weekStart } },
+      { onSuccess: () => invalidateList() }
+    );
+  };
+
   // Group items
   const groupedItems = CATEGORY_ORDER.map(cat => ({
     category: cat,
@@ -130,16 +150,48 @@ export default function GroceryList() {
           <p className="text-muted-foreground text-lg">Shop for the week of {formatWeekRange(weekStart)}</p>
         </div>
         
-        <div className="flex items-center gap-2 bg-card border border-border p-1 rounded-xl shadow-sm">
-          <Button variant="ghost" size="icon" onClick={() => setWeekStart(getPrevWeekStart(weekStart))} className="rounded-lg">
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-          <Button variant="ghost" className="font-medium text-foreground min-w-[140px] rounded-lg" onClick={() => setWeekStart(getWeekStart())}>
-            This Week
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => setWeekStart(getNextWeekStart(weekStart))} className="rounded-lg">
-            <ChevronRight className="h-5 w-5" />
-          </Button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-card border border-border p-1 rounded-xl shadow-sm">
+            <Button variant="ghost" size="icon" onClick={() => setWeekStart(getPrevWeekStart(weekStart))} className="rounded-lg">
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" className="font-medium text-foreground min-w-[140px] rounded-lg" onClick={() => setWeekStart(getWeekStart())}>
+              This Week
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => setWeekStart(getNextWeekStart(weekStart))} className="rounded-lg">
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          </div>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                className="gap-2 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                disabled={totalItems === 0 || clearList.isPending}
+              >
+                {clearList.isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Clear List
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear the entire grocery list?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This removes all {totalItems} item{totalItems === 1 ? '' : 's'} for the week of {formatWeekRange(weekStart)}, including manually added items. This can't be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleClearAll}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Clear List
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 

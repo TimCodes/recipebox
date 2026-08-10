@@ -8,6 +8,7 @@ import {
   UpdateGroceryListItemParams,
   UpdateGroceryListItemBody,
   DeleteGroceryListItemParams,
+  ClearGroceryListQueryParams,
   ListGroceryListItemsResponse,
   CreateGroceryListItemResponse,
   GenerateGroceryListResponse,
@@ -57,6 +58,20 @@ router.post("/grocery-list", async (req, res): Promise<void> => {
     .returning();
 
   res.status(201).json(CreateGroceryListItemResponse.parse(item));
+});
+
+router.delete("/grocery-list", async (req, res): Promise<void> => {
+  const query = ClearGroceryListQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+
+  const weekStart = toDateString(query.data.weekStart);
+
+  await db.delete(groceryListItemsTable).where(eq(groceryListItemsTable.weekStart, weekStart));
+
+  res.sendStatus(204);
 });
 
 router.post("/grocery-list/generate", async (req, res): Promise<void> => {

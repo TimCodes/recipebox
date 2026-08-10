@@ -333,6 +333,13 @@ export type ListGroceryListItemsParams = {
 weekStart: string;
 };
 
+export type ClearGroceryListParams = {
+/**
+ * Monday date (YYYY-MM-DD) identifying the week
+ */
+weekStart: string;
+};
+
 export type GetDashboardSummaryParams = {
 weekStart: string;
 };

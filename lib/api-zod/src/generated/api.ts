@@ -495,6 +495,16 @@ export const CreateGroceryListItemResponse = zod.object({
 
 
 /**
+ * @summary Remove every grocery list item for a week
+ */
+export const ClearGroceryListQueryParams = zod.object({
+  "weekStart": zod.coerce.date().describe('Monday date (YYYY-MM-DD) identifying the week')
+})
+
+export const ClearGroceryListResponse = zod.void()
+
+
+/**
  * Aggregates ingredients from all recipes assigned in the given week into categorized auto-generated items, preserving checked state where the same item persists and removing stale auto items no longer needed. Manually added items are left untouched.
  * @summary (Re)generate the auto grocery list from a week's meal plan
  */

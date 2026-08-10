@@ -399,6 +399,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GroceryListItem"
+    delete:
+      operationId: clearGroceryList
+      tags: [groceryList]
+      summary: Remove every grocery list item for a week
+      parameters:
+        - name: weekStart
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          description: Monday date (YYYY-MM-DD) identifying the week
+      responses:
+        "204":
+          description: Cleared
 
   /grocery-list/generate:
     post:
