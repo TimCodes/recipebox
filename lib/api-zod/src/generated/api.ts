@@ -105,6 +105,40 @@ export const CreateRecipeResponse = zod.object({
 
 
 /**
+ * Runs text extraction (for PDFs) and AI-assisted structured parsing to turn free-form recipe text into one or more recipe drafts. Drafts are NOT persisted — the client must review/edit and then POST each one to /recipes to actually save it.
+ * @summary Extract structured recipe(s) from pasted text or an uploaded PDF
+ */
+export const IngestRecipesBody = zod.object({
+  "source": zod.enum(['text', 'pdf']),
+  "text": zod.string().optional().describe('Required when source=text. Raw pasted recipe text.'),
+  "fileBase64": zod.string().optional().describe('Required when source=pdf. Base64-encoded PDF file contents (no data-URL prefix).'),
+  "fileName": zod.string().optional().describe('Optional original file name, used only for error messages.')
+})
+
+
+
+
+export const IngestRecipesResponse = zod.object({
+  "recipes": zod.array(zod.object({
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "ingredients": zod.array(zod.object({
+  "name": zod.string().min(1),
+  "quantity": zod.number().nullish(),
+  "unit": zod.string().nullish(),
+  "category": zod.enum(['produce', 'dairy', 'meat_seafood', 'bakery', 'pantry', 'frozen', 'beverages', 'spices', 'other'])
+})),
+  "instructions": zod.string(),
+  "servings": zod.number().int().nullable(),
+  "prepMinutes": zod.number().int().nullable(),
+  "cookMinutes": zod.number().int().nullable(),
+  "tags": zod.array(zod.string())
+}).describe('A recipe extracted from ingested content, not yet saved.')),
+  "warnings": zod.array(zod.string()).describe('Non-fatal notes about the extraction (e.g. truncated input, ambiguous quantities).')
+})
+
+
+/**
  * @summary List distinct tags across all recipes
  */
 export const ListRecipeTagsResponseItem = zod.string()

@@ -40,6 +40,8 @@ A personal meal-planning app: a recipe box, a weekly meal plan builder, and an a
 - No object storage / file upload for recipe photos — `photoUrl` is just a string field; seed data points at static files served from `artifacts/meal-planner/public/images/`.
 - Grocery list "auto" items are fully regenerated from the week's meal plan on each `/grocery-list/generate` call (stale auto items deleted, `checked` state preserved when name+unit still match); "manual" items are left untouched.
 - Dates (`date`, `weekStart`, `startDate`/`endDate` query params) are stored as Drizzle `date(mode:"string")` columns but generated Zod schemas coerce them to JS `Date` objects — route handlers must convert back to `"YYYY-MM-DD"` via `toDateString()` before writing to the DB.
+- Recipe ingestion (`POST /recipes/ingest`) accepts PDF as base64 JSON (not multipart) to keep the Orval-generated typed client working. It never writes to the DB directly — it only returns draft(s) for the client to review/edit and then save through the normal `POST /recipes` path.
+- PDF text is extracted server-side with `pdf-parse` (v2, wraps `pdfjs-dist`); structured recipe extraction runs via a `gpt-5.6-terra` chat completion with a strict `json_schema` response format (see `artifacts/api-server/src/lib/recipe-ingestion.ts`).
 
 ## Product
 
@@ -47,6 +49,7 @@ A personal meal-planning app: a recipe box, a weekly meal plan builder, and an a
 - **Recipe Box** (`/recipes`, `/recipes/:id`, `/recipes/new`) — searchable/taggable recipe collection with full CRUD.
 - **Meal Plan** (`/meal-plan`) — weekly grid (breakfast/lunch/dinner slots × 7 days), assign recipes per slot, week navigation.
 - **Grocery List** (`/grocery-list`) — categorized checklist, auto-synced from the week's meal plan or manually appended, per-item checked state.
+- **Import Recipe** (`/recipes/import`) — paste raw recipe text or upload a PDF; AI extracts one or more structured recipe drafts (splitting multi-recipe documents) for review/edit before saving each via the normal create-recipe path. Ingested recipes are never persisted directly — they always go through the same validation/save flow as manually created ones.
 
 ## User preferences
 

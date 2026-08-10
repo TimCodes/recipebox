@@ -8,12 +8,15 @@ import {
   UpdateRecipeParams,
   UpdateRecipeBody,
   DeleteRecipeParams,
+  IngestRecipesBody,
   ListRecipesResponse,
   CreateRecipeResponse,
   GetRecipeResponse,
   UpdateRecipeResponse,
   ListRecipeTagsResponse,
+  IngestRecipesResponse,
 } from "@workspace/api-zod";
+import { extractTextFromPdf, extractRecipesFromText, RecipeIngestionError } from "../lib/recipe-ingestion";
 
 const router: IRouter = Router();
 
@@ -68,6 +71,60 @@ router.post("/recipes", async (req, res): Promise<void> => {
     .returning();
 
   res.status(201).json(CreateRecipeResponse.parse(recipe));
+});
+
+router.post("/recipes/ingest", async (req, res): Promise<void> => {
+  const parsed = IngestRecipesBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const body = parsed.data;
+
+  let text: string;
+  try {
+    if (body.source === "text") {
+      if (!body.text?.trim()) {
+        res.status(400).json({ error: "'text' is required when source is 'text'." });
+        return;
+      }
+      text = body.text;
+    } else {
+      if (!body.fileBase64) {
+        res.status(400).json({ error: "'fileBase64' is required when source is 'pdf'." });
+        return;
+      }
+      let buffer: Buffer;
+      try {
+        buffer = Buffer.from(body.fileBase64, "base64");
+      } catch {
+        res.status(400).json({ error: "'fileBase64' is not valid base64 data." });
+        return;
+      }
+      if (buffer.length === 0) {
+        res.status(400).json({ error: `The uploaded file ${body.fileName ?? ""} was empty.`.trim() });
+        return;
+      }
+      text = await extractTextFromPdf(buffer);
+      if (!text.trim()) {
+        res.status(422).json({
+          error: `No extractable text was found in ${body.fileName ?? "the uploaded PDF"}. It may be a scanned image without a text layer.`,
+        });
+        return;
+      }
+    }
+
+    const { recipes, warnings } = await extractRecipesFromText(text);
+    res.json(IngestRecipesResponse.parse({ recipes, warnings }));
+  } catch (err) {
+    if (err instanceof RecipeIngestionError) {
+      req.log.warn({ err: err.message }, "Recipe ingestion failed");
+      res.status(422).json({ error: err.message });
+      return;
+    }
+    req.log.error({ err }, "Unexpected error during recipe ingestion");
+    res.status(500).json({ error: "An unexpected error occurred while extracting the recipe." });
+  }
 });
 
 router.get("/recipes/tags", async (_req, res): Promise<void> => {

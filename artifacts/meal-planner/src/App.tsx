@@ -4,6 +4,7 @@ import Dashboard from './pages/dashboard';
 import RecipesList from './pages/recipes-list';
 import RecipeDetail from './pages/recipe-detail';
 import RecipeForm from './pages/recipe-form';
+import RecipeImport from './pages/recipe-import';
 import MealPlan from './pages/meal-plan';
 import GroceryList from './pages/grocery-list';
 import { Shell } from './components/shell';
@@ -28,6 +29,7 @@ function Router() {
         <Route path="/" component={Dashboard} />
         <Route path="/recipes" component={RecipesList} />
         <Route path="/recipes/new" component={RecipeForm} />
+        <Route path="/recipes/import" component={RecipeImport} />
         <Route path="/recipes/:id/edit" component={RecipeForm} />
         <Route path="/recipes/:id" component={RecipeDetail} />
         <Route path="/meal-plan" component={MealPlan} />

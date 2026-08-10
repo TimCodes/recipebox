@@ -1,2 +1,3 @@
 - [Orval zod codegen with catalog: versions](orval-zod-codegen.md) — override.zod.version must be set explicitly or generated code can emit invalid zod syntax.
 - [Orval date coercion for query/path params](orval-date-coercion.md) — coercing dates in generated Zod schemas turns them into JS Date objects; route code must re-stringify before writing to string-mode date columns.
+- [pdf-parse esbuild bundling](pdf-parse-esbuild-bundling.md) — externalize pdf-parse/pdfjs-dist/@napi-rs/canvas in esbuild server bundles or it crashes with "DOMMatrix is not defined".

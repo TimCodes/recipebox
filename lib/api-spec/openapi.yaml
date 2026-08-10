@@ -76,6 +76,42 @@ paths:
               schema:
                 $ref: "#/components/schemas/Recipe"
 
+  /recipes/ingest:
+    post:
+      operationId: ingestRecipes
+      tags: [recipes]
+      summary: Extract structured recipe(s) from pasted text or an uploaded PDF
+      description: >
+        Runs text extraction (for PDFs) and AI-assisted structured parsing to turn
+        free-form recipe text into one or more recipe drafts. Drafts are NOT
+        persisted — the client must review/edit and then POST each one to
+        /recipes to actually save it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestRecipesInput"
+      responses:
+        "200":
+          description: Extracted recipe draft(s)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestRecipesResult"
+        "400":
+          description: Invalid request (bad input shape, unreadable PDF, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Content was readable but no recipe could be extracted from it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /recipes/tags:
     get:
       operationId: listRecipeTags
@@ -480,6 +516,66 @@ components:
           type: array
           items: { type: string }
         photoUrl: { type: string }
+
+    IngestSourceType:
+      type: string
+      enum: [text, pdf]
+
+    IngestRecipesInput:
+      type: object
+      required: [source]
+      properties:
+        source:
+          $ref: "#/components/schemas/IngestSourceType"
+        text:
+          type: string
+          description: Required when source=text. Raw pasted recipe text.
+        fileBase64:
+          type: string
+          description: Required when source=pdf. Base64-encoded PDF file contents (no data-URL prefix).
+        fileName:
+          type: string
+          description: Optional original file name, used only for error messages.
+
+    IngestedRecipe:
+      type: object
+      description: A recipe extracted from ingested content, not yet saved.
+      required:
+        - title
+        - description
+        - ingredients
+        - instructions
+        - servings
+        - prepMinutes
+        - cookMinutes
+        - tags
+      properties:
+        title: { type: string }
+        description: { type: ["string", "null"] }
+        ingredients:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ingredient"
+        instructions: { type: string }
+        servings: { type: ["integer", "null"] }
+        prepMinutes: { type: ["integer", "null"] }
+        cookMinutes: { type: ["integer", "null"] }
+        tags:
+          type: array
+          items: { type: string }
+
+    IngestRecipesResult:
+      type: object
+      required: [recipes, warnings]
+      properties:
+        recipes:
+          type: array
+          items:
+            $ref: "#/components/schemas/IngestedRecipe"
+        warnings:
+          type: array
+          items: { type: string }
+          description: Non-fatal notes about the extraction (e.g. truncated input, ambiguous quantities).
 
     RecipeUpdate:
       type: object

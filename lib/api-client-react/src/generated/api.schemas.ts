@@ -85,6 +85,48 @@ export interface RecipeInput {
   photoUrl?: string;
 }
 
+export type IngestSourceType = typeof IngestSourceType[keyof typeof IngestSourceType];
+
+
+export const IngestSourceType = {
+  text: 'text',
+  pdf: 'pdf',
+} as const;
+
+export interface IngestRecipesInput {
+  source: IngestSourceType;
+  /** Required when source=text. Raw pasted recipe text. */
+  text?: string;
+  /** Required when source=pdf. Base64-encoded PDF file contents (no data-URL prefix). */
+  fileBase64?: string;
+  /** Optional original file name, used only for error messages. */
+  fileName?: string;
+}
+
+/**
+ * A recipe extracted from ingested content, not yet saved.
+ */
+export interface IngestedRecipe {
+  title: string;
+  /** @nullable */
+  description: string | null;
+  ingredients: Ingredient[];
+  instructions: string;
+  /** @nullable */
+  servings: number | null;
+  /** @nullable */
+  prepMinutes: number | null;
+  /** @nullable */
+  cookMinutes: number | null;
+  tags: string[];
+}
+
+export interface IngestRecipesResult {
+  recipes: IngestedRecipe[];
+  /** Non-fatal notes about the extraction (e.g. truncated input, ambiguous quantities). */
+  warnings: string[];
+}
+
 export interface RecipeUpdate {
   /** @minLength 1 */
   title?: string;

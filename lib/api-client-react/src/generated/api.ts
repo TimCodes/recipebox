@@ -28,6 +28,8 @@ import type {
   GroceryListItemInput,
   GroceryListItemUpdate,
   HealthStatus,
+  IngestRecipesInput,
+  IngestRecipesResult,
   ListGroceryListItemsParams,
   ListMealPlanEntriesParams,
   ListRecipesParams,
@@ -297,6 +299,78 @@ export const useCreateRecipe = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateRecipeMutationOptions(options));
+    }
+
+export const getIngestRecipesUrl = () => {
+
+
+
+
+  return `/api/recipes/ingest`
+}
+
+/**
+ * Runs text extraction (for PDFs) and AI-assisted structured parsing to turn free-form recipe text into one or more recipe drafts. Drafts are NOT persisted — the client must review/edit and then POST each one to /recipes to actually save it.
+ * @summary Extract structured recipe(s) from pasted text or an uploaded PDF
+ */
+export const ingestRecipes = async (ingestRecipesInput: IngestRecipesInput, options?: Parameters<typeof customFetch>[1]): Promise<IngestRecipesResult> => {
+
+  return customFetch<IngestRecipesResult>(getIngestRecipesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(ingestRecipesInput)
+  }
+);}
+
+
+
+
+
+export const getIngestRecipesMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ingestRecipes>>, TError,{data: BodyType<IngestRecipesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof ingestRecipes>>, TError,{data: BodyType<IngestRecipesInput>}, TContext> => {
+
+const mutationKey = ['ingestRecipes'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof ingestRecipes>>, {data: BodyType<IngestRecipesInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  ingestRecipes(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type IngestRecipesMutationResult = NonNullable<Awaited<ReturnType<typeof ingestRecipes>>>
+    export type IngestRecipesMutationBody = BodyType<IngestRecipesInput>
+    export type IngestRecipesMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Extract structured recipe(s) from pasted text or an uploaded PDF
+ */
+export const useIngestRecipes = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ingestRecipes>>, TError,{data: BodyType<IngestRecipesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof ingestRecipes>>,
+        TError,
+        {data: BodyType<IngestRecipesInput>},
+        TContext
+      > => {
+      return useMutation(getIngestRecipesMutationOptions(options));
     }
 
 export const getListRecipeTagsUrl = () => {
