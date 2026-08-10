@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { GroceryListItemRecipeSource } from './groceryListItemRecipeSource';
 import type { GroceryListItemSource } from './groceryListItemSource';
 import type { IngredientCategory } from './ingredientCategory';
 
@@ -19,5 +20,7 @@ export interface GroceryListItem {
   category: IngredientCategory;
   checked: boolean;
   source: GroceryListItemSource;
+  /** Recipes this item's quantity was aggregated from (empty for manually added items). */
+  recipeSources: GroceryListItemRecipeSource[];
   createdAt: Date;
 }

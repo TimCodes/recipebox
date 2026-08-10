@@ -262,6 +262,11 @@ export const GroceryListItemSource = {
   manual: 'manual',
 } as const;
 
+export interface GroceryListItemRecipeSource {
+  id: number;
+  title: string;
+}
+
 export interface GroceryListItem {
   id: number;
   weekStart: string;
@@ -273,6 +278,8 @@ export interface GroceryListItem {
   category: IngredientCategory;
   checked: boolean;
   source: GroceryListItemSource;
+  /** Recipes this item's quantity was aggregated from (empty for manually added items). */
+  recipeSources: GroceryListItemRecipeSource[];
   createdAt: string;
 }
 

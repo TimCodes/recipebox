@@ -809,6 +809,13 @@ components:
       type: string
       enum: [auto, manual]
 
+    GroceryListItemRecipeSource:
+      type: object
+      required: [id, title]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+
     GroceryListItem:
       type: object
       required:
@@ -820,6 +827,7 @@ components:
         - category
         - checked
         - source
+        - recipeSources
         - createdAt
       properties:
         id: { type: integer }
@@ -832,6 +840,11 @@ components:
         checked: { type: boolean }
         source:
           $ref: "#/components/schemas/GroceryListItemSource"
+        recipeSources:
+          type: array
+          description: Recipes this item's quantity was aggregated from (empty for manually added items).
+          items:
+            $ref: "#/components/schemas/GroceryListItemRecipeSource"
         createdAt: { type: string, format: date-time }
 
     GroceryListItemInput:

@@ -266,11 +266,31 @@ export default function GroceryList() {
                           )}
                         />
                         
-                        <div className={cn(
-                          "flex-1 text-base transition-all",
-                          item.checked ? "line-through text-muted-foreground" : "text-foreground font-medium"
-                        )}>
-                          {item.name}
+                        <div className="flex-1 min-w-0">
+                          <div className={cn(
+                            "text-base transition-all",
+                            item.checked ? "line-through text-muted-foreground" : "text-foreground font-medium"
+                          )}>
+                            {item.name}
+                          </div>
+                          {item.recipeSources.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {item.recipeSources.map(source => (
+                                <span
+                                  key={source.id}
+                                  className={cn(
+                                    "text-xs px-1.5 py-0.5 rounded-full border truncate max-w-[160px]",
+                                    item.checked
+                                      ? "border-transparent text-muted-foreground"
+                                      : "border-secondary/30 bg-secondary/10 text-secondary-foreground/80"
+                                  )}
+                                  title={source.title}
+                                >
+                                  {source.title}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         
                         {item.quantity && (

@@ -462,6 +462,10 @@ export const ListGroceryListItemsResponseItem = zod.object({
   "category": zod.enum(['produce', 'dairy', 'meat_seafood', 'bakery', 'pantry', 'frozen', 'beverages', 'spices', 'other']),
   "checked": zod.boolean(),
   "source": zod.enum(['auto', 'manual']),
+  "recipeSources": zod.array(zod.object({
+  "id": zod.number().int(),
+  "title": zod.string()
+})).describe('Recipes this item\'s quantity was aggregated from (empty for manually added items).'),
   "createdAt": zod.coerce.date()
 })
 export const ListGroceryListItemsResponse = zod.array(ListGroceryListItemsResponseItem)
@@ -490,6 +494,10 @@ export const CreateGroceryListItemResponse = zod.object({
   "category": zod.enum(['produce', 'dairy', 'meat_seafood', 'bakery', 'pantry', 'frozen', 'beverages', 'spices', 'other']),
   "checked": zod.boolean(),
   "source": zod.enum(['auto', 'manual']),
+  "recipeSources": zod.array(zod.object({
+  "id": zod.number().int(),
+  "title": zod.string()
+})).describe('Recipes this item\'s quantity was aggregated from (empty for manually added items).'),
   "createdAt": zod.coerce.date()
 })
 
@@ -521,6 +529,10 @@ export const GenerateGroceryListResponseItem = zod.object({
   "category": zod.enum(['produce', 'dairy', 'meat_seafood', 'bakery', 'pantry', 'frozen', 'beverages', 'spices', 'other']),
   "checked": zod.boolean(),
   "source": zod.enum(['auto', 'manual']),
+  "recipeSources": zod.array(zod.object({
+  "id": zod.number().int(),
+  "title": zod.string()
+})).describe('Recipes this item\'s quantity was aggregated from (empty for manually added items).'),
   "createdAt": zod.coerce.date()
 })
 export const GenerateGroceryListResponse = zod.array(GenerateGroceryListResponseItem)
@@ -553,6 +565,10 @@ export const UpdateGroceryListItemResponse = zod.object({
   "category": zod.enum(['produce', 'dairy', 'meat_seafood', 'bakery', 'pantry', 'frozen', 'beverages', 'spices', 'other']),
   "checked": zod.boolean(),
   "source": zod.enum(['auto', 'manual']),
+  "recipeSources": zod.array(zod.object({
+  "id": zod.number().int(),
+  "title": zod.string()
+})).describe('Recipes this item\'s quantity was aggregated from (empty for manually added items).'),
   "createdAt": zod.coerce.date()
 })
 

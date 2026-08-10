@@ -18,6 +18,7 @@ export * from './generateRecipeInput';
 export * from './getDashboardSummaryParams';
 export * from './groceryListItem';
 export * from './groceryListItemInput';
+export * from './groceryListItemRecipeSource';
 export * from './groceryListItemSource';
 export * from './groceryListItemUpdate';
 export * from './healthStatus';
