@@ -2,3 +2,5 @@
 - [Orval date coercion for query/path params](orval-date-coercion.md) — coercing dates in generated Zod schemas turns them into JS Date objects; route code must re-stringify before writing to string-mode date columns.
 - [pdf-parse esbuild bundling](pdf-parse-esbuild-bundling.md) — externalize pdf-parse/pdfjs-dist/@napi-rs/canvas in esbuild server bundles or it crashes with "DOMMatrix is not defined".
 - [AI Integrations proxies lack embeddings](ai-integrations-no-embeddings.md) — OpenAI/Gemini via Replit AI Integrations have no embeddings API; use Postgres full-text search for RAG instead.
+- [Express default ETag breaks JSON API reads after mutations](express-etag-stale-api-reads.md) — 304 after a POST can make the fetch client return null instead of fresh data; disable etag/cache globally on API services.
+- [AI extraction on long documents needs chunking](ai-extraction-chunking.md) — never truncate long text before sending to an LLM for extraction; chunk on paragraph boundaries and merge results, or content past the truncation point is silently lost.
