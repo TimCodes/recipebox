@@ -8,7 +8,12 @@
 
 export * from './dashboardSummary';
 export * from './errorResponse';
+export * from './generatedMealPlanAssignment';
+export * from './generatedMealPlanResult';
+export * from './generatedRecipeResult';
 export * from './generateGroceryListInput';
+export * from './generateMealPlanInput';
+export * from './generateRecipeInput';
 export * from './getDashboardSummaryParams';
 export * from './groceryListItem';
 export * from './groceryListItemInput';
@@ -32,3 +37,4 @@ export * from './recipe';
 export * from './recipeInput';
 export * from './recipeSummary';
 export * from './recipeUpdate';
+export * from './skippedMealPlanSlot';

@@ -139,6 +139,48 @@ export const IngestRecipesResponse = zod.object({
 
 
 /**
+ * Retrieves recipes from the user's collection relevant to the prompt, then asks an AI model to generate a new recipe grounded in that context. Returned as an editable draft — the client must review/edit and then POST it to /recipes to save.
+ * @summary Generate a new recipe with AI, grounded in the user's own collection
+ */
+
+
+
+export const GenerateRecipeBody = zod.object({
+  "prompt": zod.string().min(1)
+})
+
+
+
+
+export const GenerateRecipeResponse = zod.object({
+  "recipe": zod.object({
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "ingredients": zod.array(zod.object({
+  "name": zod.string().min(1),
+  "quantity": zod.number().nullish(),
+  "unit": zod.string().nullish(),
+  "category": zod.enum(['produce', 'dairy', 'meat_seafood', 'bakery', 'pantry', 'frozen', 'beverages', 'spices', 'other'])
+})),
+  "instructions": zod.string(),
+  "servings": zod.number().int().nullable(),
+  "prepMinutes": zod.number().int().nullable(),
+  "cookMinutes": zod.number().int().nullable(),
+  "tags": zod.array(zod.string())
+}).describe('A recipe extracted from ingested content, not yet saved.'),
+  "inspiredBy": zod.array(zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "photoUrl": zod.string().nullable(),
+  "servings": zod.number().int().nullable(),
+  "prepMinutes": zod.number().int().nullable(),
+  "cookMinutes": zod.number().int().nullable(),
+  "tags": zod.array(zod.string())
+})).describe('Existing recipes from the user\'s collection that most directly informed this generation, if any.')
+})
+
+
+/**
  * @summary List distinct tags across all recipes
  */
 export const ListRecipeTagsResponseItem = zod.string()
@@ -299,6 +341,63 @@ export const CreateMealPlanEntryResponse = zod.object({
   "tags": zod.array(zod.string())
 }),
   "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * For each requested meal slot in the target week that isn't already planned, proposes either an existing recipe from the user's collection or a newly generated recipe to fill the gap. Returned as an editable draft — nothing is saved until the client creates any new recipes via /recipes and then assigns them via /meal-plan.
+ * @summary Propose a full week of meal assignments with AI, grounded in the user's own recipes
+ */
+
+
+
+
+export const GenerateMealPlanBody = zod.object({
+  "weekStart": zod.coerce.date().describe('Monday of the target week (YYYY-MM-DD).'),
+  "prompt": zod.string().min(1),
+  "mealSlots": zod.array(zod.enum(['breakfast', 'lunch', 'dinner', 'snack'])).min(1).describe('Which meal slots to plan for, applied across all 7 days of the week.')
+})
+
+
+
+
+export const GenerateMealPlanResponse = zod.object({
+  "assignments": zod.array(zod.object({
+  "date": zod.coerce.date(),
+  "mealSlot": zod.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+  "existingRecipe": zod.union([zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "photoUrl": zod.string().nullable(),
+  "servings": zod.number().int().nullable(),
+  "prepMinutes": zod.number().int().nullable(),
+  "cookMinutes": zod.number().int().nullable(),
+  "tags": zod.array(zod.string())
+}),zod.null()]).describe('Set when this slot reuses an existing recipe from the user\'s collection.'),
+  "newRecipe": zod.union([zod.object({
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "ingredients": zod.array(zod.object({
+  "name": zod.string().min(1),
+  "quantity": zod.number().nullish(),
+  "unit": zod.string().nullish(),
+  "category": zod.enum(['produce', 'dairy', 'meat_seafood', 'bakery', 'pantry', 'frozen', 'beverages', 'spices', 'other'])
+})),
+  "instructions": zod.string(),
+  "servings": zod.number().int().nullable(),
+  "prepMinutes": zod.number().int().nullable(),
+  "cookMinutes": zod.number().int().nullable(),
+  "tags": zod.array(zod.string())
+}).describe('A recipe extracted from ingested content, not yet saved.'),zod.null()]).describe('Set when this slot proposes a brand-new recipe not yet saved.'),
+  "newRecipeKey": zod.string().nullable().describe('When multiple slots share the same newRecipeKey, they refer to the SAME proposed new recipe (e.g. a big-batch dinner) — create it once and reuse its id for every slot sharing the key.'),
+  "note": zod.string().nullable()
+})),
+  "skippedSlots": zod.array(zod.object({
+  "date": zod.coerce.date(),
+  "mealSlot": zod.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+  "reason": zod.string()
+})).describe('Requested slots the AI could not confidently fill, with a reason.'),
+  "notes": zod.string().nullable().describe('Optional short overall note about the generated plan.')
 })
 
 

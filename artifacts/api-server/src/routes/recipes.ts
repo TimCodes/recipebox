@@ -9,14 +9,18 @@ import {
   UpdateRecipeBody,
   DeleteRecipeParams,
   IngestRecipesBody,
+  GenerateRecipeBody,
   ListRecipesResponse,
   CreateRecipeResponse,
   GetRecipeResponse,
   UpdateRecipeResponse,
   ListRecipeTagsResponse,
   IngestRecipesResponse,
+  GenerateRecipeResponse,
 } from "@workspace/api-zod";
 import { extractTextFromPdf, extractRecipesFromText, RecipeIngestionError } from "../lib/recipe-ingestion";
+import { generateRecipeFromPrompt, RecipeGenerationError } from "../lib/recipe-generation";
+import { retrieveRelevantRecipes } from "../lib/recipe-retrieval";
 
 const router: IRouter = Router();
 
@@ -124,6 +128,28 @@ router.post("/recipes/ingest", async (req, res): Promise<void> => {
     }
     req.log.error({ err }, "Unexpected error during recipe ingestion");
     res.status(500).json({ error: "An unexpected error occurred while extracting the recipe." });
+  }
+});
+
+router.post("/recipes/generate", async (req, res): Promise<void> => {
+  const parsed = GenerateRecipeBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  try {
+    const candidates = await retrieveRelevantRecipes(parsed.data.prompt);
+    const { recipe, inspiredBy } = await generateRecipeFromPrompt(parsed.data.prompt, candidates);
+    res.json(GenerateRecipeResponse.parse({ recipe, inspiredBy }));
+  } catch (err) {
+    if (err instanceof RecipeGenerationError) {
+      req.log.warn({ err: err.message }, "Recipe generation failed");
+      res.status(422).json({ error: err.message });
+      return;
+    }
+    req.log.error({ err }, "Unexpected error during recipe generation");
+    res.status(500).json({ error: "An unexpected error occurred while generating the recipe." });
   }
 });
 

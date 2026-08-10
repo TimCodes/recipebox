@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useListRecipes, useListRecipeTags } from '@workspace/api-client-react';
 import { Link } from 'wouter';
-import { Search, Plus, ChefHat, Clock, Users, SlidersHorizontal, X, Sparkles } from 'lucide-react';
+import { Search, Plus, ChefHat, Clock, Users, SlidersHorizontal, X, Sparkles, Wand2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +32,11 @@ export default function RecipesList() {
           <p className="text-muted-foreground text-lg">Your personal collection of favorite meals.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          <Link href="/recipes/generate">
+            <Button size="lg" variant="outline" className="w-full md:w-auto shadow-sm gap-2">
+              <Wand2 className="h-5 w-5" /> Generate with AI
+            </Button>
+          </Link>
           <Link href="/recipes/import">
             <Button size="lg" variant="outline" className="w-full md:w-auto shadow-sm gap-2">
               <Sparkles className="h-5 w-5" /> Import Recipe

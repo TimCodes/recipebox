@@ -5,7 +5,9 @@ import RecipesList from './pages/recipes-list';
 import RecipeDetail from './pages/recipe-detail';
 import RecipeForm from './pages/recipe-form';
 import RecipeImport from './pages/recipe-import';
+import RecipeGenerate from './pages/recipe-generate';
 import MealPlan from './pages/meal-plan';
+import MealPlanGenerate from './pages/meal-plan-generate';
 import GroceryList from './pages/grocery-list';
 import { Shell } from './components/shell';
 import NotFound from './pages/not-found';
@@ -30,9 +32,11 @@ function Router() {
         <Route path="/recipes" component={RecipesList} />
         <Route path="/recipes/new" component={RecipeForm} />
         <Route path="/recipes/import" component={RecipeImport} />
+        <Route path="/recipes/generate" component={RecipeGenerate} />
         <Route path="/recipes/:id/edit" component={RecipeForm} />
         <Route path="/recipes/:id" component={RecipeDetail} />
         <Route path="/meal-plan" component={MealPlan} />
+        <Route path="/meal-plan/generate" component={MealPlanGenerate} />
         <Route path="/grocery-list" component={GroceryList} />
         <Route component={NotFound} />
       </Switch>

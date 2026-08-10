@@ -23,6 +23,10 @@ import type {
   DashboardSummary,
   ErrorResponse,
   GenerateGroceryListInput,
+  GenerateMealPlanInput,
+  GenerateRecipeInput,
+  GeneratedMealPlanResult,
+  GeneratedRecipeResult,
   GetDashboardSummaryParams,
   GroceryListItem,
   GroceryListItemInput,
@@ -371,6 +375,78 @@ export const useIngestRecipes = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getIngestRecipesMutationOptions(options));
+    }
+
+export const getGenerateRecipeUrl = () => {
+
+
+
+
+  return `/api/recipes/generate`
+}
+
+/**
+ * Retrieves recipes from the user's collection relevant to the prompt, then asks an AI model to generate a new recipe grounded in that context. Returned as an editable draft — the client must review/edit and then POST it to /recipes to save.
+ * @summary Generate a new recipe with AI, grounded in the user's own collection
+ */
+export const generateRecipe = async (generateRecipeInput: GenerateRecipeInput, options?: Parameters<typeof customFetch>[1]): Promise<GeneratedRecipeResult> => {
+
+  return customFetch<GeneratedRecipeResult>(getGenerateRecipeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(generateRecipeInput)
+  }
+);}
+
+
+
+
+
+export const getGenerateRecipeMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateRecipe>>, TError,{data: BodyType<GenerateRecipeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateRecipe>>, TError,{data: BodyType<GenerateRecipeInput>}, TContext> => {
+
+const mutationKey = ['generateRecipe'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateRecipe>>, {data: BodyType<GenerateRecipeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  generateRecipe(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GenerateRecipeMutationResult = NonNullable<Awaited<ReturnType<typeof generateRecipe>>>
+    export type GenerateRecipeMutationBody = BodyType<GenerateRecipeInput>
+    export type GenerateRecipeMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Generate a new recipe with AI, grounded in the user's own collection
+ */
+export const useGenerateRecipe = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateRecipe>>, TError,{data: BodyType<GenerateRecipeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof generateRecipe>>,
+        TError,
+        {data: BodyType<GenerateRecipeInput>},
+        TContext
+      > => {
+      return useMutation(getGenerateRecipeMutationOptions(options));
     }
 
 export const getListRecipeTagsUrl = () => {
@@ -823,6 +899,78 @@ export const useCreateMealPlanEntry = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getCreateMealPlanEntryMutationOptions(options));
+    }
+
+export const getGenerateMealPlanUrl = () => {
+
+
+
+
+  return `/api/meal-plan/generate`
+}
+
+/**
+ * For each requested meal slot in the target week that isn't already planned, proposes either an existing recipe from the user's collection or a newly generated recipe to fill the gap. Returned as an editable draft — nothing is saved until the client creates any new recipes via /recipes and then assigns them via /meal-plan.
+ * @summary Propose a full week of meal assignments with AI, grounded in the user's own recipes
+ */
+export const generateMealPlan = async (generateMealPlanInput: GenerateMealPlanInput, options?: Parameters<typeof customFetch>[1]): Promise<GeneratedMealPlanResult> => {
+
+  return customFetch<GeneratedMealPlanResult>(getGenerateMealPlanUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(generateMealPlanInput)
+  }
+);}
+
+
+
+
+
+export const getGenerateMealPlanMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateMealPlan>>, TError,{data: BodyType<GenerateMealPlanInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateMealPlan>>, TError,{data: BodyType<GenerateMealPlanInput>}, TContext> => {
+
+const mutationKey = ['generateMealPlan'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateMealPlan>>, {data: BodyType<GenerateMealPlanInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  generateMealPlan(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GenerateMealPlanMutationResult = NonNullable<Awaited<ReturnType<typeof generateMealPlan>>>
+    export type GenerateMealPlanMutationBody = BodyType<GenerateMealPlanInput>
+    export type GenerateMealPlanMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Propose a full week of meal assignments with AI, grounded in the user's own recipes
+ */
+export const useGenerateMealPlan = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateMealPlan>>, TError,{data: BodyType<GenerateMealPlanInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof generateMealPlan>>,
+        TError,
+        {data: BodyType<GenerateMealPlanInput>},
+        TContext
+      > => {
+      return useMutation(getGenerateMealPlanMutationOptions(options));
     }
 
 export const getUpdateMealPlanEntryUrl = (id: number,) => {

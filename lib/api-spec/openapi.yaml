@@ -112,6 +112,41 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /recipes/generate:
+    post:
+      operationId: generateRecipe
+      tags: [recipes]
+      summary: Generate a new recipe with AI, grounded in the user's own collection
+      description: >
+        Retrieves recipes from the user's collection relevant to the prompt, then asks an
+        AI model to generate a new recipe grounded in that context. Returned as an
+        editable draft — the client must review/edit and then POST it to /recipes to save.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateRecipeInput"
+      responses:
+        "200":
+          description: Generated recipe draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedRecipeResult"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: The AI could not produce a usable recipe from the given prompt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /recipes/tags:
     get:
       operationId: listRecipeTags
@@ -238,6 +273,42 @@ paths:
                 $ref: "#/components/schemas/MealPlanEntry"
         "404":
           description: Recipe not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /meal-plan/generate:
+    post:
+      operationId: generateMealPlan
+      tags: [mealPlan]
+      summary: Propose a full week of meal assignments with AI, grounded in the user's own recipes
+      description: >
+        For each requested meal slot in the target week that isn't already planned, proposes
+        either an existing recipe from the user's collection or a newly generated recipe to
+        fill the gap. Returned as an editable draft — nothing is saved until the client
+        creates any new recipes via /recipes and then assigns them via /meal-plan.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateMealPlanInput"
+      responses:
+        "200":
+          description: Generated meal plan draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedMealPlanResult"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: The AI could not produce a usable meal plan from the given prompt
           content:
             application/json:
               schema:
@@ -576,6 +647,86 @@ components:
           type: array
           items: { type: string }
           description: Non-fatal notes about the extraction (e.g. truncated input, ambiguous quantities).
+
+    GenerateRecipeInput:
+      type: object
+      required: [prompt]
+      properties:
+        prompt: { type: string, minLength: 1 }
+
+    GeneratedRecipeResult:
+      type: object
+      required: [recipe, inspiredBy]
+      properties:
+        recipe:
+          $ref: "#/components/schemas/IngestedRecipe"
+        inspiredBy:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecipeSummary"
+          description: Existing recipes from the user's collection that most directly informed this generation, if any.
+
+    GenerateMealPlanInput:
+      type: object
+      required: [weekStart, prompt, mealSlots]
+      properties:
+        weekStart: { type: string, format: date, description: "Monday of the target week (YYYY-MM-DD)." }
+        prompt: { type: string, minLength: 1 }
+        mealSlots:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/MealSlot"
+          description: Which meal slots to plan for, applied across all 7 days of the week.
+
+    GeneratedMealPlanAssignment:
+      type: object
+      required: [date, mealSlot, existingRecipe, newRecipe, newRecipeKey, note]
+      properties:
+        date: { type: string, format: date }
+        mealSlot:
+          $ref: "#/components/schemas/MealSlot"
+        existingRecipe:
+          oneOf:
+            - $ref: "#/components/schemas/RecipeSummary"
+            - type: "null"
+          description: Set when this slot reuses an existing recipe from the user's collection.
+        newRecipe:
+          oneOf:
+            - $ref: "#/components/schemas/IngestedRecipe"
+            - type: "null"
+          description: Set when this slot proposes a brand-new recipe not yet saved.
+        newRecipeKey:
+          type: ["string", "null"]
+          description: When multiple slots share the same newRecipeKey, they refer to the SAME proposed new recipe (e.g. a big-batch dinner) — create it once and reuse its id for every slot sharing the key.
+        note:
+          type: ["string", "null"]
+
+    SkippedMealPlanSlot:
+      type: object
+      required: [date, mealSlot, reason]
+      properties:
+        date: { type: string, format: date }
+        mealSlot:
+          $ref: "#/components/schemas/MealSlot"
+        reason: { type: string }
+
+    GeneratedMealPlanResult:
+      type: object
+      required: [assignments, skippedSlots, notes]
+      properties:
+        assignments:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeneratedMealPlanAssignment"
+        skippedSlots:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkippedMealPlanSlot"
+          description: Requested slots the AI could not confidently fill, with a reason.
+        notes:
+          type: ["string", "null"]
+          description: Optional short overall note about the generated plan.
 
     RecipeUpdate:
       type: object

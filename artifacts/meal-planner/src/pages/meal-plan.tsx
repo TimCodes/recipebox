@@ -11,7 +11,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { format, addDays, isSameDay } from 'date-fns';
 import { getWeekStart, getNextWeekStart, getPrevWeekStart, formatWeekRange } from '@/lib/date-utils';
-import { ChevronLeft, ChevronRight, Plus, ChefHat, Trash2, Clock, X, CalendarPlus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, ChefHat, Trash2, Clock, X, CalendarPlus, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MealSlot, MealPlanEntry, RecipeSummary } from '@workspace/api-client-react';
@@ -133,16 +133,23 @@ export default function MealPlan() {
           <p className="text-muted-foreground text-lg">Organize your cooking for the week.</p>
         </div>
         
-        <div className="flex items-center gap-2 bg-card border border-border p-1 rounded-xl shadow-sm">
-          <Button variant="ghost" size="icon" onClick={handlePrevWeek} className="rounded-lg">
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-          <Button variant="ghost" className="font-medium text-foreground min-w-[160px] rounded-lg" onClick={handleToday}>
-            {formatWeekRange(weekStart)}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={handleNextWeek} className="rounded-lg">
-            <ChevronRight className="h-5 w-5" />
-          </Button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-card border border-border p-1 rounded-xl shadow-sm">
+            <Button variant="ghost" size="icon" onClick={handlePrevWeek} className="rounded-lg">
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" className="font-medium text-foreground min-w-[160px] rounded-lg" onClick={handleToday}>
+              {formatWeekRange(weekStart)}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleNextWeek} className="rounded-lg">
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          </div>
+          <Link href={`/meal-plan/generate?weekStart=${weekStart}`}>
+            <Button size="lg" variant="outline" className="shadow-sm gap-2">
+              <Wand2 className="h-5 w-5" /> Generate with AI
+            </Button>
+          </Link>
         </div>
       </div>
 

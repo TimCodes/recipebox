@@ -42,6 +42,7 @@ A personal meal-planning app: a recipe box, a weekly meal plan builder, and an a
 - Dates (`date`, `weekStart`, `startDate`/`endDate` query params) are stored as Drizzle `date(mode:"string")` columns but generated Zod schemas coerce them to JS `Date` objects — route handlers must convert back to `"YYYY-MM-DD"` via `toDateString()` before writing to the DB.
 - Recipe ingestion (`POST /recipes/ingest`) accepts PDF as base64 JSON (not multipart) to keep the Orval-generated typed client working. It never writes to the DB directly — it only returns draft(s) for the client to review/edit and then save through the normal `POST /recipes` path.
 - PDF text is extracted server-side with `pdf-parse` (v2, wraps `pdfjs-dist`); structured recipe extraction runs via a `gpt-5.6-terra` chat completion with a strict `json_schema` response format (see `artifacts/api-server/src/lib/recipe-ingestion.ts`).
+- AI recipe/meal-plan generation (`POST /recipes/generate`, `POST /meal-plan/generate`) is RAG-grounded in the user's own recipe collection, but retrieval uses **Postgres full-text search** (`to_tsvector`/`websearch_to_tsquery`/`ts_rank`, computed live — see `artifacts/api-server/src/lib/recipe-retrieval.ts`), not vector embeddings — neither the OpenAI nor Gemini Replit AI Integrations proxies expose an embeddings API. Since it's computed live from the current rows, retrieval can never drift out of sync with creates/edits/deletes. Like ingestion, neither generate endpoint writes to the DB directly; the client saves/assigns only after the user reviews the draft.
 
 ## Product
 
@@ -50,6 +51,8 @@ A personal meal-planning app: a recipe box, a weekly meal plan builder, and an a
 - **Meal Plan** (`/meal-plan`) — weekly grid (breakfast/lunch/dinner slots × 7 days), assign recipes per slot, week navigation.
 - **Grocery List** (`/grocery-list`) — categorized checklist, auto-synced from the week's meal plan or manually appended, per-item checked state.
 - **Import Recipe** (`/recipes/import`) — paste raw recipe text or upload a PDF; AI extracts one or more structured recipe drafts (splitting multi-recipe documents) for review/edit before saving each via the normal create-recipe path. Ingested recipes are never persisted directly — they always go through the same validation/save flow as manually created ones.
+- **Generate Recipe with AI** (`/recipes/generate`) — describe a dish/prompt; AI proposes one new recipe grounded in the user's existing collection (shown as "Inspired by" chips when relevant), as an editable draft saved through the normal create-recipe path.
+- **Generate Meal Plan with AI** (`/meal-plan/generate`) — pick which meal slots to plan (defaults to dinner) and describe the week; AI fills each empty slot with either an existing recipe or a newly generated one (reusing one big-batch recipe across multiple slots when asked), shown as a removable-card review grid before the user accepts and the plan + any new recipes are saved. Already-planned slots are skipped with a clear reason shown to the user.
 
 ## User preferences
 

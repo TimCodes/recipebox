@@ -127,6 +127,76 @@ export interface IngestRecipesResult {
   warnings: string[];
 }
 
+export interface GenerateRecipeInput {
+  /** @minLength 1 */
+  prompt: string;
+}
+
+export interface RecipeSummary {
+  id: number;
+  title: string;
+  /** @nullable */
+  photoUrl: string | null;
+  /** @nullable */
+  servings: number | null;
+  /** @nullable */
+  prepMinutes: number | null;
+  /** @nullable */
+  cookMinutes: number | null;
+  tags: string[];
+}
+
+export interface GeneratedRecipeResult {
+  recipe: IngestedRecipe;
+  /** Existing recipes from the user's collection that most directly informed this generation, if any. */
+  inspiredBy: RecipeSummary[];
+}
+
+export interface GenerateMealPlanInput {
+  /** Monday of the target week (YYYY-MM-DD). */
+  weekStart: string;
+  /** @minLength 1 */
+  prompt: string;
+  /**
+     * Which meal slots to plan for, applied across all 7 days of the week.
+     * @minItems 1
+     */
+  mealSlots: MealSlot[];
+}
+
+export interface GeneratedMealPlanAssignment {
+  date: string;
+  mealSlot: MealSlot;
+  /** Set when this slot reuses an existing recipe from the user's collection. */
+  existingRecipe: RecipeSummary | null;
+  /** Set when this slot proposes a brand-new recipe not yet saved. */
+  newRecipe: IngestedRecipe | null;
+  /**
+     * When multiple slots share the same newRecipeKey, they refer to the SAME proposed new recipe (e.g. a big-batch dinner) — create it once and reuse its id for every slot sharing the key.
+     * @nullable
+     */
+  newRecipeKey: string | null;
+  /** @nullable */
+  note: string | null;
+}
+
+export interface SkippedMealPlanSlot {
+  date: string;
+  mealSlot: MealSlot;
+  reason: string;
+}
+
+export interface GeneratedMealPlanResult {
+  assignments: GeneratedMealPlanAssignment[];
+  /** Requested slots the AI could not confidently fill, with a reason. */
+  skippedSlots: SkippedMealPlanSlot[];
+  /**
+     * Optional short overall note about the generated plan.
+     * @nullable
+     */
+  notes: string | null;
+}
+
 export interface RecipeUpdate {
   /** @minLength 1 */
   title?: string;
@@ -153,20 +223,6 @@ export interface RecipeUpdate {
   tags?: string[];
   /** @nullable */
   photoUrl?: string | null;
-}
-
-export interface RecipeSummary {
-  id: number;
-  title: string;
-  /** @nullable */
-  photoUrl: string | null;
-  /** @nullable */
-  servings: number | null;
-  /** @nullable */
-  prepMinutes: number | null;
-  /** @nullable */
-  cookMinutes: number | null;
-  tags: string[];
 }
 
 export interface MealPlanEntry {

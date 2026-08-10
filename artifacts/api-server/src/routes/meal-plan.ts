@@ -7,12 +7,16 @@ import {
   UpdateMealPlanEntryParams,
   UpdateMealPlanEntryBody,
   DeleteMealPlanEntryParams,
+  GenerateMealPlanBody,
   ListMealPlanEntriesResponse,
   CreateMealPlanEntryResponse,
   UpdateMealPlanEntryResponse,
+  GenerateMealPlanResponse,
 } from "@workspace/api-zod";
 import { toDateString } from "../lib/date";
 import { toRecipeSummary } from "../lib/recipe-summary";
+import { retrieveRelevantRecipes, listRecipeLite } from "../lib/recipe-retrieval";
+import { generateMealPlanFromPrompt, RecipeGenerationError, type MealPlanSlotRequest } from "../lib/recipe-generation";
 
 const router: IRouter = Router();
 
@@ -78,6 +82,75 @@ router.post("/meal-plan", async (req, res): Promise<void> => {
       createdAt: entry.createdAt,
     }),
   );
+});
+
+router.post("/meal-plan/generate", async (req, res): Promise<void> => {
+  const parsed = GenerateMealPlanBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const weekStart = toDateString(parsed.data.weekStart);
+  const startDate = new Date(`${weekStart}T00:00:00.000Z`);
+  const weekDates = Array.from({ length: 7 }).map((_, i) => {
+    const d = new Date(startDate);
+    d.setUTCDate(d.getUTCDate() + i);
+    return toDateString(d);
+  });
+  const weekEnd = weekDates[weekDates.length - 1];
+
+  const requestedSlots: MealPlanSlotRequest[] = weekDates.flatMap((date) =>
+    parsed.data.mealSlots.map((mealSlot) => ({ date, mealSlot })),
+  );
+
+  const existingEntries = await db
+    .select({ date: mealPlanEntriesTable.date, mealSlot: mealPlanEntriesTable.mealSlot })
+    .from(mealPlanEntriesTable)
+    .where(and(gte(mealPlanEntriesTable.date, weekStart), lte(mealPlanEntriesTable.date, weekEnd)));
+  const alreadyPlanned = new Set(existingEntries.map((e) => `${e.date}|${e.mealSlot}`));
+
+  const slotsToFill = requestedSlots.filter((s) => !alreadyPlanned.has(`${s.date}|${s.mealSlot}`));
+  const skippedForAlreadyPlanned = requestedSlots
+    .filter((s) => alreadyPlanned.has(`${s.date}|${s.mealSlot}`))
+    .map((s) => ({ date: s.date, mealSlot: s.mealSlot, reason: "This slot is already planned." }));
+
+  if (slotsToFill.length === 0) {
+    res.json(
+      GenerateMealPlanResponse.parse({
+        assignments: [],
+        skippedSlots: skippedForAlreadyPlanned,
+        notes: "Every requested slot for this week is already planned.",
+      }),
+    );
+    return;
+  }
+
+  try {
+    const [contextRecipes, allRecipes] = await Promise.all([retrieveRelevantRecipes(parsed.data.prompt), listRecipeLite()]);
+    const { assignments, skippedSlots, notes } = await generateMealPlanFromPrompt({
+      prompt: parsed.data.prompt,
+      slotsToFill,
+      contextRecipes,
+      allRecipes,
+    });
+
+    res.json(
+      GenerateMealPlanResponse.parse({
+        assignments,
+        skippedSlots: [...skippedForAlreadyPlanned, ...skippedSlots],
+        notes,
+      }),
+    );
+  } catch (err) {
+    if (err instanceof RecipeGenerationError) {
+      req.log.warn({ err: err.message }, "Meal plan generation failed");
+      res.status(422).json({ error: err.message });
+      return;
+    }
+    req.log.error({ err }, "Unexpected error during meal plan generation");
+    res.status(500).json({ error: "An unexpected error occurred while generating the meal plan." });
+  }
 });
 
 router.patch("/meal-plan/:id", async (req, res): Promise<void> => {

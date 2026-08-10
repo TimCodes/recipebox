@@ -34,43 +34,49 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   }
 }
 
+/**
+ * JSON schema for a single structured recipe object, shared by every AI call that
+ * produces a recipe draft (ingestion extraction, and AI-assisted generation).
+ */
+export const RECIPE_OBJECT_SCHEMA = {
+  type: "object",
+  properties: {
+    title: { type: "string" },
+    description: { type: ["string", "null"] },
+    servings: { type: ["integer", "null"] },
+    prepMinutes: { type: ["integer", "null"] },
+    cookMinutes: { type: ["integer", "null"] },
+    tags: { type: "array", items: { type: "string" } },
+    ingredients: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          quantity: { type: ["number", "null"] },
+          unit: { type: ["string", "null"] },
+          category: { type: "string", enum: INGREDIENT_CATEGORIES },
+        },
+        required: ["name", "quantity", "unit", "category"],
+        additionalProperties: false,
+      },
+    },
+    instructions: {
+      type: "string",
+      description: "Numbered or step-by-step instructions, newline separated.",
+    },
+  },
+  required: ["title", "description", "servings", "prepMinutes", "cookMinutes", "tags", "ingredients", "instructions"],
+  additionalProperties: false,
+} as const;
+
 const RECIPE_EXTRACTION_SCHEMA = {
   type: "object",
   properties: {
     recipes: {
       type: "array",
       description: "One entry per distinct recipe found in the source text. Empty if no recipe is present.",
-      items: {
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          description: { type: ["string", "null"] },
-          servings: { type: ["integer", "null"] },
-          prepMinutes: { type: ["integer", "null"] },
-          cookMinutes: { type: ["integer", "null"] },
-          tags: { type: "array", items: { type: "string" } },
-          ingredients: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                name: { type: "string" },
-                quantity: { type: ["number", "null"] },
-                unit: { type: ["string", "null"] },
-                category: { type: "string", enum: INGREDIENT_CATEGORIES },
-              },
-              required: ["name", "quantity", "unit", "category"],
-              additionalProperties: false,
-            },
-          },
-          instructions: {
-            type: "string",
-            description: "Numbered or step-by-step instructions, newline separated.",
-          },
-        },
-        required: ["title", "description", "servings", "prepMinutes", "cookMinutes", "tags", "ingredients", "instructions"],
-        additionalProperties: false,
-      },
+      items: RECIPE_OBJECT_SCHEMA,
     },
   },
   required: ["recipes"],
