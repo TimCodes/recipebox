@@ -279,10 +279,10 @@ export default function GroceryList() {
                                 <span
                                   key={source.id}
                                   className={cn(
-                                    "text-xs px-1.5 py-0.5 rounded-full border truncate max-w-[160px]",
+                                    "text-xs font-medium px-1.5 py-0.5 rounded-full border truncate max-w-[160px]",
                                     item.checked
-                                      ? "border-transparent text-muted-foreground"
-                                      : "border-secondary/30 bg-secondary/10 text-secondary-foreground/80"
+                                      ? "border-transparent bg-muted text-muted-foreground"
+                                      : "border-accent-border bg-accent text-accent-foreground"
                                   )}
                                   title={source.title}
                                 >
