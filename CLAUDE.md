@@ -45,7 +45,9 @@ is the only automated check. Verify behavior by running the app.
 | Var | Used by | Notes |
 | --- | --- | --- |
 | `DATABASE_URL` | `lib/db`, `drizzle.config.ts` | **required** — throws at import time if missing |
-| `AI_INTEGRATIONS_OPENAI_BASE_URL` / `AI_INTEGRATIONS_OPENAI_API_KEY` | `lib/integrations-openai-ai-server` | **required** — throws at import even though only AI features use them. `.env` carries placeholders so the server boots; AI calls then fail at request time |
+| `OPENAI_API_KEY` | `lib/openai` | **optional** — without it the app runs normally and only the three AI endpoints return 503 |
+| `OPENAI_BASE_URL` | `lib/openai` | optional; any OpenAI-compatible endpoint. Blank = api.openai.com |
+| `OPENAI_MODEL_INGEST` / `OPENAI_MODEL_RECIPE` / `OPENAI_MODEL_MEAL_PLAN` / `OPENAI_MODEL` | `lib/openai` | per-task model override; `OPENAI_MODEL` overrides all three |
 | `PORT` | api-server, vite | defaults `3000` / `5173` |
 | `BASE_PATH` | meal-planner vite config | defaults `/`; becomes vite `base` |
 | `API_PROXY_TARGET` | meal-planner vite config | defaults `http://localhost:3000`; dev `/api` proxy target |
@@ -68,7 +70,7 @@ lib/api-client-react/          ← generated react-query hooks + TS types (@work
   src/custom-fetch.ts          ← hand-written fetch mutator (baseUrl, auth-token hook, ApiError)
 lib/api-zod/                   ← generated Zod request/response schemas (@workspace/api-zod)
 lib/db/                        ← Drizzle schema + pool (@workspace/db)
-lib/integrations-openai-ai-server/  ← OpenAI SDK, still pointed at the Replit proxy (phase 5)
+lib/openai/                    ← lazy OpenAI client + per-task model selection (@workspace/openai)
 artifacts/api-server/          ← Express 5 API, mounted at /api, esbuild → dist/index.mjs
 artifacts/meal-planner/        ← React 19 + Vite + wouter + shadcn/ui, the actual product
 scripts/                       ← pnpm enforcement guard + a stub
@@ -153,17 +155,30 @@ Two behaviors worth knowing before touching them:
 
 ## AI subsystem (`artifacts/api-server/src/lib/`)
 
-All three AI endpoints use `openai.chat.completions.create` with model `gpt-5.6-terra` and a
-`strict: true` `json_schema` response format. `RECIPE_OBJECT_SCHEMA` in `recipe-ingestion.ts` is
-the shared recipe shape reused by generation — change it in one place.
+All three AI endpoints call `getOpenAI().chat.completions.create` with a `strict: true`
+`json_schema` response format. `RECIPE_OBJECT_SCHEMA` in `recipe-ingestion.ts` is the shared
+recipe shape reused by generation — change it in one place.
+
+**Model choice is per task**, resolved by `modelFor()` in `lib/openai/src/models.ts`:
+`ingest` defaults to the cheapest tier because one cookbook PDF fans out to as many as 12
+calls and the task is mechanical transcription; `recipe` and `mealPlan` default a tier up
+because they invent content and do slot-allocation reasoning. Override any of them by env.
+
+Every task depends on strict structured outputs. Swap in a model that doesn't support them
+and the call fails loudly (the API rejects `response_format`) rather than returning
+unparseable text — so a bad model choice surfaces immediately, not as corrupt data.
+
+The client is **lazy** (`getOpenAI()`): a missing `OPENAI_API_KEY` fails only the AI routes,
+with a 503, instead of preventing the server from booting at all.
 
 - **`recipe-ingestion.ts`** — PDF text via `pdf-parse` v2, then chunked extraction
   (18k chars, ≤12 chunks, 4 concurrent, ≤60 recipes returned) merged across chunks, with
   user-facing `warnings[]` when a cap is hit.
 - **`recipe-retrieval.ts`** — RAG grounding via **Postgres full-text search** computed live
-  (`to_tsvector`/`websearch_to_tsquery`/`ts_rank`), not embeddings. The Replit AI Integrations
-  proxies expose no embeddings API. Falls back to most-recently-updated recipes when the
-  collection is small or the query matches nothing.
+  (`to_tsvector`/`websearch_to_tsquery`/`ts_rank`), not embeddings. This was originally forced
+  by the Replit proxies having no embeddings API; with a direct OpenAI key that constraint is
+  gone, so pgvector retrieval is now possible if ever wanted. Falls back to most-recently-updated
+  recipes when the collection is small or the query matches nothing.
 - **`recipe-generation.ts`** — recipe generation returns `inspiredByIds` (filtered against the
   real candidate set before it's trusted); meal-plan generation returns per-slot assignments,
   validates every returned slot against the requested set, drops duplicates and hallucinated

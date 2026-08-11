@@ -18,6 +18,7 @@ import {
   IngestRecipesResponse,
   GenerateRecipeResponse,
 } from "@workspace/api-zod";
+import { OpenAINotConfiguredError } from "@workspace/openai";
 import { extractTextFromPdf, extractRecipesFromText, RecipeIngestionError } from "../lib/recipe-ingestion";
 import { generateRecipeFromPrompt, RecipeGenerationError } from "../lib/recipe-generation";
 import { retrieveRelevantRecipes } from "../lib/recipe-retrieval";
@@ -121,6 +122,10 @@ router.post("/recipes/ingest", async (req, res): Promise<void> => {
     const { recipes, warnings } = await extractRecipesFromText(text);
     res.json(IngestRecipesResponse.parse({ recipes, warnings }));
   } catch (err) {
+    if (err instanceof OpenAINotConfiguredError) {
+      res.status(503).json({ error: err.message });
+      return;
+    }
     if (err instanceof RecipeIngestionError) {
       req.log.warn({ err: err.message }, "Recipe ingestion failed");
       res.status(422).json({ error: err.message });
@@ -143,6 +148,10 @@ router.post("/recipes/generate", async (req, res): Promise<void> => {
     const { recipe, inspiredBy } = await generateRecipeFromPrompt(parsed.data.prompt, candidates);
     res.json(GenerateRecipeResponse.parse({ recipe, inspiredBy }));
   } catch (err) {
+    if (err instanceof OpenAINotConfiguredError) {
+      res.status(503).json({ error: err.message });
+      return;
+    }
     if (err instanceof RecipeGenerationError) {
       req.log.warn({ err: err.message }, "Recipe generation failed");
       res.status(422).json({ error: err.message });

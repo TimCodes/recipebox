@@ -1,4 +1,4 @@
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { getOpenAI, modelFor } from "@workspace/openai";
 import type { IngestedRecipe, RecipeSummary, MealSlot } from "@workspace/api-zod";
 import type { Recipe } from "@workspace/db";
 import { toRecipeSummary } from "./recipe-summary";
@@ -38,8 +38,8 @@ export async function generateRecipeFromPrompt(prompt: string, candidates: Recip
       ? `Here are some recipes already in the user's collection that may be relevant:\n${candidates.map(summarizeRecipeForContext).join("\n")}`
       : "The user's recipe collection is currently empty or has nothing relevant — invent a reasonable recipe from scratch.";
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-5.6-terra",
+  const completion = await getOpenAI().chat.completions.create({
+    model: modelFor("recipe"),
     max_completion_tokens: 8192,
     messages: [
       {
@@ -168,8 +168,8 @@ export async function generateMealPlanFromPrompt(params: {
       ? `\n\nDetailed context on recipes that seem most relevant to this request:\n${contextRecipes.map(summarizeRecipeForContext).join("\n")}`
       : "";
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-5.6-terra",
+  const completion = await getOpenAI().chat.completions.create({
+    model: modelFor("mealPlan"),
     max_completion_tokens: 8192,
     messages: [
       {

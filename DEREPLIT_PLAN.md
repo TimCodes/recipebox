@@ -4,10 +4,10 @@ Move Kitchen Notebook off Replit onto a self-hosted Docker stack: one app contai
 (Express serving both the API and the built React bundle) plus one Postgres container,
 orchestrated with Docker Compose.
 
-Status: **phases 1, 2 and 3 complete** (PRs #1, #2) · phase 4 dev-half complete.
+Status: **phases 1, 2, 3 and 5 complete** (PRs #1, #2, #3) · phase 4 dev-half complete.
 Remaining: **phase 0** (dump the live Replit database — still outstanding, needs the Replit
-`DATABASE_URL`), phase 4 prod-half (static serving), phase 5 (AI provider), phase 6
-(Dockerfile/Compose), phase 7 (ops), phase 8 (docs).
+`DATABASE_URL`), phase 4 prod-half (static serving), phase 6 (Dockerfile/Compose), phase 7
+(ops), phase 8 (docs).
 
 ---
 
@@ -38,7 +38,7 @@ Remaining: **phase 0** (dump the live Replit database — still outstanding, nee
   A "build a pushable image / add CI" phase can bolt on later without reworking anything
   below.
 
-**Still open** — one real blocker, see §6.
+**Resolved:** the AI provider question in §6 — direct OpenAI, cheapest viable model per task.
 
 ## 3. What is actually coupled to Replit
 
@@ -88,9 +88,10 @@ repo replaces that once Replit is gone. Both dev and prod need an explicit answe
 `AI_INTEGRATIONS_OPENAI_BASE_URL` + `AI_INTEGRATIONS_OPENAI_API_KEY` — the Replit AI
 Integrations proxy. It also ships unused `image/`, `audio/`, and `batch/` modules.
 
-**The model id `gpt-5.6-terra` is a Replit-proxy model name.** It will not resolve against
-`api.openai.com`. All three AI features break the moment the proxy is gone. This is the
-open decision in §6.
+~~**The model id `gpt-5.6-terra` is a Replit-proxy model name.**~~ **CORRECTION:**
+`gpt-5.6-terra` is a real OpenAI model (~$2.00/$12.00 per 1M tokens). The earlier claim that
+it was proxy-only was wrong. Losing the proxy costs only the credentials and base URL, not
+the model — which made §6 a much smaller decision than first assessed.
 
 ### 3.5 Database lifecycle
 
@@ -278,6 +279,22 @@ Getting this wrong is silent: the app works, it's just slow.
 refresh on `/recipes/12` and `/grocery-list` renders instead of 404ing; `/api/healthz`
 returns JSON; hashed assets come back with a long `max-age`.
 
+### Phase 5 — Replace the AI integration ✅ DONE
+
+Outcome notes:
+
+- `lib/integrations-openai-ai-server` → `lib/openai` (`@workspace/openai`). Dead `image/`,
+  `audio/` and `batch/` modules deleted with it.
+- Client is now **lazy**. The old module threw at *import* when credentials were missing,
+  which took down the whole API server — recipes, meal plan, grocery list included — because
+  one optional feature was unconfigured. Now `OPENAI_API_KEY` is optional and only the three
+  AI routes fail, with a 503 and an actionable message.
+- Model selection is **per task**, not one global id (see §6).
+- `.env` no longer needs placeholder AI credentials; that hack is gone.
+
+<details>
+<summary>Original phase 5 plan</summary>
+
 ### Phase 5 — Replace the AI integration
 
 - New package `lib/openai` (or rewrite in place) exporting a client built from
@@ -294,6 +311,8 @@ returns JSON; hashed assets come back with a long `max-age`.
 `attached_assets/`, generate a recipe, generate a week's plan. Confirm strict `json_schema`
 structured output still parses. Confirm the chunking path by importing the full cookbook,
 not a single-page PDF.
+
+</details>
 
 ### Phase 6 — Dockerfile + Compose
 
@@ -331,10 +350,30 @@ See §8. Do this last, describing what was actually built rather than what was p
 
 ---
 
-## 6. Open decision — the AI model (blocks Phase 5)
+## 6. ~~Open decision~~ — RESOLVED: direct OpenAI, cheapest viable models
 
-`gpt-5.6-terra` exists only behind Replit's AI Integrations proxy. Off Replit it 404s, and
-recipe import, recipe generation, and meal-plan generation all stop working. Options:
+**Decision: option A.** Direct OpenAI with the user's own key, and the lowest-cost model
+that can do each job — ingestion especially, since it is the fan-out case.
+
+**Correction to the original framing below:** this section claimed `gpt-5.6-terra` was a
+Replit-only model id that would 404 against `api.openai.com`. That was wrong — it is a real
+OpenAI model. Losing the proxy therefore cost only credentials and a base URL. The decision
+turned out to be about *cost*, not *survival*.
+
+Implemented in phase 5: per-task model selection (`lib/openai/src/models.ts`), defaulting to
+`gpt-5-nano` for ingestion and `gpt-5.6-luna` for the two generation tasks — versus
+`gpt-5.6-terra` (~$2.00/$12.00 per 1M) previously used for all three. That is roughly a **40×
+reduction in input cost on the ingestion path**, which is also the path that fires up to 12
+calls per cookbook.
+
+Caveat carried into verification: the OpenAI docs confirm Structured Outputs from
+`gpt-4o-2024-08-06` "and later" but do not explicitly enumerate the newest nano/mini tiers.
+The defaults must be confirmed empirically against a real key before being trusted; a model
+without strict `json_schema` support fails the request outright rather than corrupting data,
+so the failure mode is safe.
+
+<details>
+<summary>Original options as written</summary>
 
 **A. Direct OpenAI with your own API key.** Smallest diff — same SDK, same
 `response_format: { type: "json_schema", strict: true }`, same code paths. Swap the base
@@ -352,6 +391,8 @@ the cookbook PDF before trusting it.
 **Recommendation: A**, with the base URL kept configurable so C remains a drop-in
 experiment later. Either way the model id becomes `OPENAI_MODEL` in `.env` rather than a
 literal in three files.
+
+</details>
 
 Also worth noting: `recipe-retrieval.ts` uses Postgres full-text search rather than
 embeddings *because* the Replit proxies had no embeddings API (`.agents/memory/ai-integrations-no-embeddings.md`).
