@@ -4,7 +4,9 @@ Move Kitchen Notebook off Replit onto a self-hosted Docker stack: one app contai
 (Express serving both the API and the built React bundle) plus one Postgres container,
 orchestrated with Docker Compose.
 
-Status: **plan only — nothing implemented yet.**
+Status: **phase 1 complete** (merged, PR #1) · **phase 3 complete** · phase 4 dev-half complete.
+Remaining: phase 2 (delete Replit scaffolding), phase 4 prod-half (static serving), phase 5
+(AI provider), phase 6 (Dockerfile/Compose), phase 7 (ops), phase 8 (docs).
 
 ---
 
@@ -188,6 +190,25 @@ That has not been possible before this phase.
 **Verify:** `grep -ri replit --exclude-dir=node_modules .` returns only the intentional
 `// @replit` shadcn comments and this plan document.
 
+### Phase 3 — Postgres in Docker + real migrations ✅ DONE
+
+Outcome notes (differences from the plan as written):
+
+- Host port is **5442**, not 5432 — ports 5432, 5433 *and* 5434 were all occupied.
+- Migrations run in-process on boot via `lib/db/src/migrate.ts` + `runMigrations()` called
+  from `artifacts/api-server/src/index.ts`, not via a separate migration container. Boot
+  fails loudly if migrations fail.
+- Baseline is `lib/db/drizzle/0000_cynical_fallen_one.sql`, verified to apply cleanly to an
+  empty volume and to be a no-op on restart.
+- **New finding:** a database created by the old `push` path has no `__drizzle_migrations`
+  journal, so `0000` fails against it with "table already exists". The Phase 0 dump must be
+  restored **data-only** into a freshly migrated database. Documented in `CLAUDE.md`.
+- Phase 0's dump of the live Replit database has **not** been taken — still outstanding
+  before that data can be brought over.
+
+<details>
+<summary>Original phase 3 plan</summary>
+
 ### Phase 3 — Postgres in Docker + real migrations
 
 - `compose.yaml` service `db`: `postgres:17-bookworm`, named volume `pgdata`, `POSTGRES_*`
@@ -205,6 +226,8 @@ That has not been possible before this phase.
 **Verify:** `docker compose up db`, run migrations against an empty volume, confirm all
 three tables + enums exist; then restore the dump and confirm recipe/meal-plan/grocery rows
 read back through the API.
+
+</details>
 
 ### Phase 4 — Routing: replace `router = "application"`
 
@@ -362,7 +385,7 @@ Memory updates due in Phase 8:
 | --- | --- | --- |
 | AI model id has no off-Replit equivalent | **High** — 3 features dark | §6, resolved before Phase 5 |
 | Recipe data lost in migration | **High** — irreplaceable | Phase 0 dump, restore verified in Phase 3 before anything destructive |
-| Regenerating `pnpm-lock.yaml` after removing overrides pulls different versions | Medium | Lockfile diff reviewed as its own commit; full typecheck + build + manual smoke |
+| ~~Regenerating `pnpm-lock.yaml` pulls different versions~~ | ~~Medium~~ **RESOLVED** | Diff was purely the re-added platform binaries; no dependency version changed |
 | `pdf-parse` native deps behave differently in-container | Medium | glibc base image; PDF import is an explicit Phase 6 verification step |
 | SPA fallback shadows `/api`, or `no-store` kills asset caching | Low, but silent | Explicit Phase 4 verification of both |
 | First-ever migration baseline drifts from the live DB | Medium | Generate the baseline from current schema, then diff against the restored dump |
