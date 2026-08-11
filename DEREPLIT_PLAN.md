@@ -4,10 +4,9 @@ Move Kitchen Notebook off Replit onto a self-hosted Docker stack: one app contai
 (Express serving both the API and the built React bundle) plus one Postgres container,
 orchestrated with Docker Compose.
 
-Status: **phases 1, 2, 3 and 5 complete** (PRs #1, #2, #3) · phase 4 dev-half complete.
-Remaining: **phase 0** (dump the live Replit database — still outstanding, needs the Replit
-`DATABASE_URL`), phase 4 prod-half (static serving), phase 6 (Dockerfile/Compose), phase 7
-(ops), phase 8 (docs).
+Status: **phases 1, 2, 3 and 5 complete** (PRs #1, #2, #3, #4) · phase 4 dev-half complete ·
+**phase 0 closed as not-needed** (see below). Remaining: phase 4 prod-half (static serving),
+phase 6 (Dockerfile/Compose), phase 7 (ops), phase 8 (docs).
 
 ---
 
@@ -152,6 +151,30 @@ whole `dist/` directory.
 Each phase is independently verifiable and independently committable. Order matters:
 Phases 1–2 make the repo buildable off-Replit at all, which everything else depends on.
 
+### Phase 0 — Safety net ⏭️ SKIPPED (deliberately)
+
+**Decision (2026-08-11): the Replit data is disposable — no migration of it needed.** The
+owner confirmed the recipes there can be thrown away, which removes the single highest
+-severity risk in this plan. Nothing was restored; the new database starts empty.
+
+Also found while attempting it: the Replit database is addressed as `helium/heliumdb`, an
+internal hostname that resolves **only inside the Repl's network**. Verified it does not
+resolve from a developer machine, so this dump could never have been pulled remotely — it
+would have had to be taken from inside the Repl shell. Worth knowing if anything else is ever
+recovered from that Repl.
+
+What was kept, because it is still needed for phase 7 (ongoing backups of the *real* local
+database):
+
+- `scripts/dump-remote-db.sh` — pg_dump via the postgres:17 image, since there are no client
+  tools on the host. URL passed through the environment, never as an argument.
+- `scripts/restore-data.sh` — data-only restore into a migrated database, with FK triggers
+  suppressed for the load.
+- Tag `pre-dereplit` at the last pre-migration commit.
+
+<details>
+<summary>Original phase 0 plan</summary>
+
 ### Phase 0 — Safety net
 
 - Tag the current state: `git tag pre-dereplit`.
@@ -160,6 +183,8 @@ Phases 1–2 make the repo buildable off-Replit at all, which everything else de
 - Confirm the app currently runs on Replit, so later breakage is attributable.
 
 **Verify:** dump file is non-empty and `pg_restore --list` (or a `psql` dry parse) reads it.
+
+</details>
 
 ### Phase 1 — Make the repo host-buildable
 
@@ -448,10 +473,11 @@ Memory updates due in Phase 8:
 
 | Risk | Severity | Mitigation |
 | --- | --- | --- |
-| AI model id has no off-Replit equivalent | **High** — 3 features dark | §6, resolved before Phase 5 |
-| Recipe data lost in migration | **High** — irreplaceable | Phase 0 dump, restore verified in Phase 3 before anything destructive |
+| ~~AI model id has no off-Replit equivalent~~ | ~~**High**~~ **RESOLVED** | The premise was wrong — `gpt-5.6-terra` is a real OpenAI model. Phase 5 shipped on direct OpenAI, ~18× cheaper than before |
+| ~~Recipe data lost in migration~~ | ~~**High**~~ **RETIRED** | Owner confirmed the Replit data is disposable; nothing to lose. New database starts empty |
 | ~~Regenerating `pnpm-lock.yaml` pulls different versions~~ | ~~Medium~~ **RESOLVED** | Diff was purely the re-added platform binaries; no dependency version changed |
 | `pdf-parse` native deps behave differently in-container | Medium | glibc base image; PDF import is an explicit Phase 6 verification step |
+| Full-cookbook import holds one HTTP request ~130s | Medium | Measured in phase 5. Constrains proxy/LB timeouts and container healthcheck intervals in phase 6 |
 | SPA fallback shadows `/api`, or `no-store` kills asset caching | Low, but silent | Explicit Phase 4 verification of both |
 | First-ever migration baseline drifts from the live DB | Medium | Generate the baseline from current schema, then diff against the restored dump |
 
