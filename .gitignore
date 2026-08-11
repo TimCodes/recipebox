@@ -47,3 +47,6 @@ Thumbs.db
 # Local environment
 .env
 .env.local
+
+# Database dumps — real recipe data, never commit
+backups/
