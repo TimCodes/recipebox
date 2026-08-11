@@ -4,8 +4,14 @@ Move Kitchen Notebook off Replit onto a self-hosted Docker stack: one app contai
 (Express serving both the API and the built React bundle) plus one Postgres container,
 orchestrated with Docker Compose.
 
-Status: **phases 1–6 complete** · **phase 0 closed as not-needed**. The app now runs entirely
-in Docker: `docker compose up --build -d`. Remaining: phase 7 (ops/backups), phase 8 (docs).
+Status: **COMPLETE.** All phases done; phase 0 closed as not-needed. The app runs entirely in
+Docker (`docker compose up --build -d`) with no Replit dependency of any kind.
+
+Phase 7 outcome: backup/restore scripts, a verified disaster-recovery drill, and `README.md`.
+Phase 8 outcome: `replit.md` → `PROJECT.md`, `CLAUDE.md` refreshed, and five new
+`.agents/memory/` entries capturing what this migration taught — the platform-overrides trap,
+reasoning-model cost, the silent cache-header regression, migration baselining, and the
+data-only dump defect found by running the recovery drill.
 
 ---
 

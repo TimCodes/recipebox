@@ -1,6 +1,11 @@
 - [Orval zod codegen with catalog: versions](orval-zod-codegen.md) — override.zod.version must be set explicitly or generated code can emit invalid zod syntax.
 - [Orval date coercion for query/path params](orval-date-coercion.md) — coercing dates in generated Zod schemas turns them into JS Date objects; route code must re-stringify before writing to string-mode date columns.
-- [pdf-parse esbuild bundling](pdf-parse-esbuild-bundling.md) — externalize pdf-parse/pdfjs-dist/@napi-rs/canvas in esbuild server bundles or it crashes with "DOMMatrix is not defined".
-- [AI Integrations proxies lack embeddings](ai-integrations-no-embeddings.md) — OpenAI/Gemini via Replit AI Integrations have no embeddings API; use Postgres full-text search for RAG instead.
+- [pdf-parse esbuild bundling](pdf-parse-esbuild-bundling.md) — externalize pdf-parse/pdfjs-dist/@napi-rs/canvas in esbuild server bundles, and ship real node_modules in the container image.
+- [AI Integrations proxies lack embeddings](ai-integrations-no-embeddings.md) — historical: was true of the Replit proxies, no longer a constraint now that OpenAI is used directly.
 - [Express default ETag breaks JSON API reads after mutations](express-etag-stale-api-reads.md) — 304 after a POST can make the fetch client return null instead of fresh data; disable etag/cache globally on API services.
-- [AI extraction on long documents needs chunking](ai-extraction-chunking.md) — never truncate long text before sending to an LLM for extraction; chunk on paragraph boundaries and merge results, or content past the truncation point is silently lost.
+- [AI extraction on long documents needs chunking](ai-extraction-chunking.md) — never truncate long text before sending to an LLM for extraction; chunk on paragraph boundaries and merge results.
+- [Workspace platform overrides can make a repo unbuildable](workspace-platform-overrides-trap.md) — pnpm overrides nulling out non-host platform binaries block every other developer OS, and the error never points at the config.
+- [Cheapest per token is not cheapest per task](reasoning-models-cost-per-task.md) — reasoning models can burn 12x the output tokens on trivial work; benchmark cost per completed call, and check output correctness not just that it parsed.
+- [A global no-store breaks static asset caching](global-no-store-breaks-static-assets.md) — scope API cache headers to /api once the same process starts serving a frontend build; the failure is silent.
+- [Migration baselining for a push-built database](migration-baselining-existing-database.md) — a schema created by drizzle-kit push has no journal, so migration 0000 fails against it; restore data-only into a freshly migrated database.
+- [Data-only dumps must exclude the migration journal](data-only-dumps-exclude-migration-journal.md) — including __drizzle_migrations aborts the whole restore on a duplicate key, so the backup looks fine and recovers nothing.

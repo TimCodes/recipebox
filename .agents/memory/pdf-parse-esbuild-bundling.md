@@ -8,3 +8,10 @@ description: pdf-parse (wraps pdfjs-dist) must be externalized in esbuild server
 **Why:** esbuild bundling defeats pdfjs-dist's own runtime environment detection and native-module loading path.
 
 **How to apply:** add `pdf-parse`, `pdfjs-dist`, and `@napi-rs/canvas` to the esbuild `external` list for any server that bundles with esbuild (see `external: [...]` array in an artifact's `build.mjs`) before using `pdf-parse` for PDF text extraction.
+
+**Container corollary (verified 2026-08-11):** because these packages are externalized rather
+than bundled, they must exist as *real* `node_modules` in the runtime image. A Docker image
+that copies only `dist/index.mjs` will fail at import. With pnpm this means copying both the
+root `node_modules` (which holds the real packages under `.pnpm`) and the consuming package's
+own `node_modules` link farm, since pnpm's tree is symlinks. Confirmed working: a full
+cookbook PDF ingested inside the container with no `DOMMatrix` error.
