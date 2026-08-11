@@ -13,6 +13,7 @@ import {
   UpdateMealPlanEntryResponse,
   GenerateMealPlanResponse,
 } from "@workspace/api-zod";
+import { OpenAINotConfiguredError } from "@workspace/openai";
 import { toDateString } from "../lib/date";
 import { toRecipeSummary } from "../lib/recipe-summary";
 import { retrieveRelevantRecipes, listRecipeLite } from "../lib/recipe-retrieval";
@@ -143,6 +144,10 @@ router.post("/meal-plan/generate", async (req, res): Promise<void> => {
       }),
     );
   } catch (err) {
+    if (err instanceof OpenAINotConfiguredError) {
+      res.status(503).json({ error: err.message });
+      return;
+    }
     if (err instanceof RecipeGenerationError) {
       req.log.warn({ err: err.message }, "Meal plan generation failed");
       res.status(422).json({ error: err.message });
