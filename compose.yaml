@@ -1,0 +1,56 @@
+# Production stack: one app container (API + built frontend) plus Postgres.
+#
+#   cp .env.example .env      # set OPENAI_API_KEY if you want the AI features
+#   docker compose up --build -d
+#
+# Then open http://localhost:${APP_PORT:-3000}
+#
+# For development use compose.dev.yaml instead — that runs Postgres only, and the API and
+# Vite dev server run on the host so you keep HMR.
+
+services:
+  db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-recipebox}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-recipebox}
+      POSTGRES_DB: ${POSTGRES_DB:-recipebox}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-recipebox} -d ${POSTGRES_DB:-recipebox}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Not published by default — only the app needs to reach it. Uncomment to inspect the
+    # database from the host (5432/5433/5434 are often already taken).
+    # ports:
+    #   - "${POSTGRES_HOST_PORT:-5442}:5432"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        # Waits for pg_isready, not merely for the container to exist — the app applies
+        # migrations at boot and exits non-zero if the database is unreachable.
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-recipebox}:${POSTGRES_PASSWORD:-recipebox}@db:5432/${POSTGRES_DB:-recipebox}
+      PORT: 3000
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Optional. Unset means the app runs normally and only the AI routes return 503.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL_INGEST: ${OPENAI_MODEL_INGEST:-}
+      OPENAI_MODEL_RECIPE: ${OPENAI_MODEL_RECIPE:-}
+      OPENAI_MODEL_MEAL_PLAN: ${OPENAI_MODEL_MEAL_PLAN:-}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+
+volumes:
+  pgdata:
