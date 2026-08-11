@@ -159,10 +159,21 @@ All three AI endpoints call `getOpenAI().chat.completions.create` with a `strict
 `json_schema` response format. `RECIPE_OBJECT_SCHEMA` in `recipe-ingestion.ts` is the shared
 recipe shape reused by generation — change it in one place.
 
-**Model choice is per task**, resolved by `modelFor()` in `lib/openai/src/models.ts`:
-`ingest` defaults to the cheapest tier because one cookbook PDF fans out to as many as 12
-calls and the task is mechanical transcription; `recipe` and `mealPlan` default a tier up
-because they invent content and do slot-allocation reasoning. Override any of them by env.
+**Model choice is per task**, resolved by `modelFor()` in `lib/openai/src/models.ts` —
+`gpt-4o-mini` for `ingest`, `gpt-5.6-luna` for `recipe`/`mealPlan`, all env-overridable.
+That file documents the measured benchmark behind those defaults. Two results worth knowing
+before changing them:
+
+- **The gpt-5 family are reasoning models.** At default effort `gpt-5-nano` spent 3,072
+  reasoning tokens on mechanical transcription — 6.4× the cost and 10× the latency of
+  `gpt-4o-mini`. Cheapest per token is not cheapest per task when output dominates.
+- `gpt-5-nano` with `reasoning_effort: "minimal"` is cheaper still, but consistently merged
+  `"salt and pepper"` into one ingredient. That breaks grocery aggregation, which matches on
+  exact name — a merged ingredient never combines across recipes.
+
+Real numbers: the full cookbook in `attached_assets/` yields 60 recipes for ~$0.04 and
+**~130 seconds** — a 12-chunk fan-out at concurrency 4. That request duration is a real
+constraint for any proxy or load balancer put in front of the API.
 
 Every task depends on strict structured outputs. Swap in a model that doesn't support them
 and the call fails loudly (the API rejects `response_format`) rather than returning
