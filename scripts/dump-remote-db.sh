@@ -66,7 +66,7 @@ docker run --rm -e PGURL="$SOURCE_DATABASE_URL" "$IMAGE" \
 
 echo "Dumping data only      -> $OUT_DIR/$LABEL-data.sql"
 docker run --rm -e PGURL="$SOURCE_DATABASE_URL" "$IMAGE" \
-  sh -c 'pg_dump "$PGURL" --no-owner --no-privileges --data-only' > "$OUT_DIR/$LABEL-data.sql"
+  sh -c 'pg_dump "$PGURL" --no-owner --no-privileges --data-only --exclude-schema=drizzle' > "$OUT_DIR/$LABEL-data.sql"
 
 echo
 echo "Done:"

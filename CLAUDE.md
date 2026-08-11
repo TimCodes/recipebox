@@ -4,10 +4,14 @@ Personal meal-planning app: a recipe box, a weekly meal-plan grid, and an auto-g
 grocery list, plus three AI features (import a recipe, generate a recipe, generate a
 week's plan).
 
-Originally built on Replit; `DEREPLIT_PLAN.md` tracks the migration to a self-hosted
-Docker stack and which phases are done. `replit.md` is the product/architecture doc (to be
-renamed `PROJECT.md` in phase 8) — read it too. This file is the engineering-facing
-companion: how the pieces fit, what the workflows are, and where the traps are.
+Runs as a Docker Compose stack: one app container (Express serving the API and the built
+React bundle) plus Postgres. Originally built on Replit; `DEREPLIT_PLAN.md` records that
+migration and the reasoning behind each decision.
+
+Docs: `README.md` (run/update/back up) · `PROJECT.md` (product + architecture decisions) ·
+this file (engineering context, conventions, traps) · `.agents/memory/` (one fact per file,
+indexed by `MEMORY.md` — read it, the entries there are all things that already cost a
+debugging session).
 
 ## Commands
 
@@ -270,9 +274,25 @@ These are all documented in `.agents/memory/` and each one has already cost a de
 
 ## Known gaps / likely next work
 
-- No tests, no auth, no multi-user scoping.
+- No tests, no auth, no multi-user scoping. The app assumes a single trusted user; do not
+  expose it publicly without authentication in front.
 - No `(date, mealSlot)` DB constraint — duplicate slot entries are only prevented in app code.
 - Grocery aggregation ignores `servings` and does no unit normalization ("1 cup" + "8 oz" stay
   separate lines).
 - Recipe list search and the dashboard both load all recipes into memory.
 - Photos are static-file URLs only; there's no upload path.
+
+## Operations
+
+- `./scripts/backup-db.sh` — timestamped dump of the local database to `backups/`, keeping
+  the newest 14 of each kind. Emits a full dump and a data-only dump.
+- `./scripts/restore-data.sh backups/<ts>-data.sql` — restore. Refuses a non-empty target
+  unless `FORCE=1`, because a data-only dump carries explicit primary keys and would collide.
+- The recovery drill has actually been run: destroy the volume, bring the stack up, restore —
+  data returns and id sequences resume correctly rather than restarting at 1.
+- Production logs are plain JSON on stdout (`docker compose logs app`); `pino-pretty` is
+  dev-only.
+- Update flow: `git pull && docker compose up --build -d`. Migrations apply on boot.
+
+Note `compose.yaml` and `compose.dev.yaml` share the `recipebox_pgdata` volume — they are the
+same Compose project. Convenient, but `down -v` on either wipes both.

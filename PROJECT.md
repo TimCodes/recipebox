@@ -2,22 +2,29 @@
 
 A personal meal-planning app: a recipe box, a weekly meal plan builder, and an auto-generated grocery list.
 
+This is the product and architecture-decision document. For running the app see `README.md`;
+for engineering workflows and traps see `CLAUDE.md`.
+
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server
-- `pnpm --filter @workspace/meal-planner run dev` — run the web frontend
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec (run this after editing `lib/api-spec/openapi.yaml`)
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `docker compose up --build -d` — the whole stack (app + Postgres)
+- `docker compose -f compose.dev.yaml up -d` — dev: Postgres only, app and frontend on the host
+- `pnpm --filter @workspace/api-server run dev` — API server (dev)
+- `pnpm --filter @workspace/meal-planner run dev` — web frontend (dev)
+- `pnpm run typecheck` / `pnpm run build`
+- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas after editing `lib/api-spec/openapi.yaml`
+- `pnpm --filter @workspace/db run generate` — create a migration after a schema change
+- `./scripts/backup-db.sh` — back up the database
+- Required env: `DATABASE_URL`. Optional: `OPENAI_API_KEY` (AI features), see `.env.example`
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
 - API: Express 5, mounted under `/api` (artifact `artifacts/api-server`)
 - Frontend: React + Vite, mounted at `/` (artifact `artifacts/meal-planner`)
-- DB: PostgreSQL + Drizzle ORM
+- DB: PostgreSQL + Drizzle ORM, with committed migrations applied on server boot
+- Deployment: Docker Compose — one app container (API + built frontend) plus Postgres
+- AI: OpenAI, per-task model selection (`lib/openai`)
 - Validation: Zod, `drizzle-zod`
 - API codegen: Orval (react-query hooks + Zod schemas generated from `lib/api-spec/openapi.yaml`)
 - Build: esbuild (CJS bundle) for the API server
@@ -41,8 +48,8 @@ A personal meal-planning app: a recipe box, a weekly meal plan builder, and an a
 - Grocery list "auto" items are fully regenerated from the week's meal plan on each `/grocery-list/generate` call (stale auto items deleted, `checked` state preserved when name+unit still match); "manual" items are left untouched.
 - Dates (`date`, `weekStart`, `startDate`/`endDate` query params) are stored as Drizzle `date(mode:"string")` columns but generated Zod schemas coerce them to JS `Date` objects — route handlers must convert back to `"YYYY-MM-DD"` via `toDateString()` before writing to the DB.
 - Recipe ingestion (`POST /recipes/ingest`) accepts PDF as base64 JSON (not multipart) to keep the Orval-generated typed client working. It never writes to the DB directly — it only returns draft(s) for the client to review/edit and then save through the normal `POST /recipes` path.
-- PDF text is extracted server-side with `pdf-parse` (v2, wraps `pdfjs-dist`); structured recipe extraction runs via a `gpt-5.6-terra` chat completion with a strict `json_schema` response format (see `artifacts/api-server/src/lib/recipe-ingestion.ts`).
-- AI recipe/meal-plan generation (`POST /recipes/generate`, `POST /meal-plan/generate`) is RAG-grounded in the user's own recipe collection, but retrieval uses **Postgres full-text search** (`to_tsvector`/`websearch_to_tsquery`/`ts_rank`, computed live — see `artifacts/api-server/src/lib/recipe-retrieval.ts`), not vector embeddings — neither the OpenAI nor Gemini Replit AI Integrations proxies expose an embeddings API. Since it's computed live from the current rows, retrieval can never drift out of sync with creates/edits/deletes. Like ingestion, neither generate endpoint writes to the DB directly; the client saves/assigns only after the user reviews the draft.
+- PDF text is extracted server-side with `pdf-parse` (v2, wraps `pdfjs-dist`); structured recipe extraction runs via a strict `json_schema` chat completion, model chosen per task in `lib/openai/src/models.ts` (see `artifacts/api-server/src/lib/recipe-ingestion.ts`).
+- AI recipe/meal-plan generation (`POST /recipes/generate`, `POST /meal-plan/generate`) is RAG-grounded in the user's own recipe collection, but retrieval uses **Postgres full-text search** (`to_tsvector`/`websearch_to_tsquery`/`ts_rank`, computed live — see `artifacts/api-server/src/lib/recipe-retrieval.ts`), not vector embeddings. This was originally forced by the Replit AI proxies having no embeddings API; the app now uses OpenAI directly, so embeddings are available if ever wanted, but full-text search has been kept because it needs no index-maintenance pipeline. Since it's computed live from the current rows, retrieval can never drift out of sync with creates/edits/deletes. Like ingestion, neither generate endpoint writes to the DB directly; the client saves/assigns only after the user reviews the draft.
 
 ## Product
 
@@ -56,7 +63,11 @@ A personal meal-planning app: a recipe box, a weekly meal plan builder, and an a
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- **Cost matters for AI.** Prefer the cheapest model that does the job correctly, ingestion
+  especially — measure per-call cost rather than trusting headline per-token pricing.
+- Keep the context-document strategy: this file plus `CLAUDE.md` plus one-fact-per-file
+  memories under `.agents/memory/`.
+- The Replit recipe data was disposable; the local database is now the only copy that matters.
 
 ## Gotchas
 
@@ -67,4 +78,7 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Pointers
 
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- `README.md` — running, updating, and backing up the app
+- `CLAUDE.md` — engineering context, conventions, and non-obvious traps
+- `DEREPLIT_PLAN.md` — the Replit → Docker migration and the reasoning behind each decision
+- `.agents/memory/` — one fact per file, indexed by `MEMORY.md`

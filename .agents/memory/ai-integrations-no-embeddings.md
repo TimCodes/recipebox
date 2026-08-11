@@ -3,6 +3,12 @@ name: AI Integrations proxies lack an embeddings API
 description: Neither OpenAI nor Gemini via Replit AI Integrations expose embeddings — plan RAG retrieval without vector search unless the user supplies their own API key.
 ---
 
+> **STATUS (2026-08-11): historical.** This constraint was environmental, not fundamental.
+> The app has since moved off the Replit proxies to OpenAI directly, so an embeddings API
+> *is* available now. Full-text search was kept anyway — it needs no index-maintenance
+> pipeline and cannot drift out of sync — but the reason is now preference, not necessity.
+> The general lesson below still applies whenever only a proxied provider is available.
+
 Both the OpenAI and Gemini Replit AI Integrations proxy skills explicitly list embeddings under
 "Unsupported Capabilities." There is no way to get a vector-embeddings endpoint through either
 proxy without the user supplying their own provider API key (which is a separate ask, not implied
