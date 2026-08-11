@@ -1,5 +1,5 @@
 import { PDFParse } from "pdf-parse";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { getOpenAI, modelFor } from "@workspace/openai";
 import type { IngestedRecipe } from "@workspace/api-zod";
 
 export const INGREDIENT_CATEGORIES = [
@@ -119,8 +119,8 @@ function splitIntoChunks(text: string, chunkSize: number, maxChunks: number): { 
 
 /** Runs one structured-extraction model call over a single chunk of text. Returns [] if no recipe is present in the chunk. */
 async function extractRecipesFromChunk(chunk: string): Promise<IngestedRecipe[]> {
-  const completion = await openai.chat.completions.create({
-    model: "gpt-5.6-terra",
+  const completion = await getOpenAI().chat.completions.create({
+    model: modelFor("ingest"),
     max_completion_tokens: 8192,
     messages: [
       {
