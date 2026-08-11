@@ -4,9 +4,10 @@ Move Kitchen Notebook off Replit onto a self-hosted Docker stack: one app contai
 (Express serving both the API and the built React bundle) plus one Postgres container,
 orchestrated with Docker Compose.
 
-Status: **phase 1 complete** (merged, PR #1) · **phase 3 complete** · phase 4 dev-half complete.
-Remaining: phase 2 (delete Replit scaffolding), phase 4 prod-half (static serving), phase 5
-(AI provider), phase 6 (Dockerfile/Compose), phase 7 (ops), phase 8 (docs).
+Status: **phases 1, 2 and 3 complete** (PRs #1, #2) · phase 4 dev-half complete.
+Remaining: **phase 0** (dump the live Replit database — still outstanding, needs the Replit
+`DATABASE_URL`), phase 4 prod-half (static serving), phase 5 (AI provider), phase 6
+(Dockerfile/Compose), phase 7 (ops), phase 8 (docs).
 
 ---
 
@@ -177,6 +178,27 @@ The unblocker for everything else.
 **Verify:** `pnpm install && pnpm run typecheck && pnpm run build` succeeds **on Windows**.
 That has not been possible before this phase.
 
+### Phase 2 — Delete Replit scaffolding ✅ DONE
+
+Outcome notes:
+
+- Removed `.replit`, `.replitignore`, `scripts/post-merge.sh`, the Replit `.gitignore`
+  entries, all three `@replit/vite-plugin-*` deps and their catalog entries, the unused
+  `@replit/connectors-sdk` root dependency, and `minimumReleaseAgeExclude`.
+  `minimumReleaseAge: 1440` kept.
+- Deleted `artifacts/mockup-sandbox` (~4,500 lines).
+- `index.html`: real title/description; **removed the Google Fonts `<link>` for Inter**,
+  which no CSS ever referenced. The fonts actually in use (DM Sans, Fraunces) come from an
+  `@import` at the top of `src/index.css` and are untouched.
+- **Deviation from plan:** did *not* self-host the fonts. That is an offline-capability
+  improvement unrelated to Replit, and swapping font delivery risks visible rendering
+  changes. Left as an optional follow-up.
+- The `// @replit` comments in `ui/badge.tsx` and `ui/button.tsx` stay — they mark
+  deliberate shadcn deviations and removing them would lose that intent.
+
+<details>
+<summary>Original phase 2 plan</summary>
+
 ### Phase 2 — Delete Replit scaffolding
 
 - Delete `.replit`, `.replitignore`, `scripts/post-merge.sh`.
@@ -189,6 +211,8 @@ That has not been possible before this phase.
 
 **Verify:** `grep -ri replit --exclude-dir=node_modules .` returns only the intentional
 `// @replit` shadcn comments and this plan document.
+
+</details>
 
 ### Phase 3 — Postgres in Docker + real migrations ✅ DONE
 
