@@ -3,18 +3,25 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { mountStatic } from "./static";
 
 const app: Express = express();
 
-// This is a dynamic JSON API, not cacheable content. Express's default
-// weak ETag + conditional-GET support can make the client-side fetch layer
-// receive a 304 Not Modified for an endpoint whose underlying data just
-// changed (e.g. right after a POST), which the generated API client
-// (customFetch) treats as "no body" and resolves as `null` instead of the
-// real payload — silently breaking UI refreshes after mutations. Disable
-// ETags and force clients to always fetch a fresh body.
+// The API is dynamic JSON, not cacheable content. Express's default weak ETag +
+// conditional-GET support can make the client-side fetch layer receive a 304 Not
+// Modified for an endpoint whose underlying data just changed (e.g. right after a
+// POST), which the generated API client (customFetch) treats as "no body" and
+// resolves as `null` instead of the real payload — silently breaking UI refreshes
+// after mutations. Disable ETags and force clients to always fetch a fresh body.
 app.set("etag", false);
-app.use((_req, res, next) => {
+
+// Scoped to /api ON PURPOSE. This used to be global, which was correct when the
+// server only served the API. Now that it also serves the built frontend, a global
+// no-store would make every content-hashed JS/CSS asset uncacheable — the browser
+// would re-download the whole bundle on every page load. That failure is invisible:
+// the app works, it is just needlessly slow. Static assets set their own headers in
+// ./static.
+app.use("/api", (_req, res, next) => {
   res.set("Cache-Control", "no-store");
   next();
 });
@@ -44,5 +51,16 @@ app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
 app.use("/api", router);
+
+// Unmatched API routes must answer as JSON. Without this they fall through to Express's
+// default handler, which returns an HTML error page — a typo'd endpoint then gives the
+// generated client an HTML body where it expects `{ error }`, and the real failure surfaces
+// somewhere much less obvious.
+app.use("/api", (_req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
+
+// After the API router, so /api always wins and the SPA fallback cannot shadow it.
+mountStatic(app);
 
 export default app;

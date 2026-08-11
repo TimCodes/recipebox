@@ -28,8 +28,10 @@ pnpm run typecheck
 ```
 
 - `pnpm run build` — typecheck, then build every package.
-- `docker compose -f compose.dev.yaml up -d` — start Postgres (host port 5442; 5432–5434 are
-  taken on this machine).
+- `docker compose -f compose.dev.yaml up -d` — dev: Postgres only (host port 5442; 5432–5434
+  are taken on this machine). API + Vite run on the host for HMR.
+- `docker compose up --build -d` — prod: the whole stack in containers, one app image serving
+  API + frontend. Open `http://localhost:${APP_PORT:-3000}`.
 - `pnpm --filter @workspace/db run generate` — generate a migration after editing the schema.
 - `pnpm --filter @workspace/db run migrate` — apply pending migrations manually. Normally
   unnecessary: the API server applies them on boot.
@@ -51,7 +53,9 @@ is the only automated check. Verify behavior by running the app.
 | `PORT` | api-server, vite | defaults `3000` / `5173` |
 | `BASE_PATH` | meal-planner vite config | defaults `/`; becomes vite `base` |
 | `API_PROXY_TARGET` | meal-planner vite config | defaults `http://localhost:3000`; dev `/api` proxy target |
-| `MIGRATIONS_DIR` | api-server | defaults to `lib/db/drizzle` relative to the bundled server |
+| `MIGRATIONS_DIR` | api-server | defaults to `lib/db/drizzle` relative to the bundled server; set explicitly in the image |
+| `STATIC_DIR` | api-server | frontend build to serve; unset + absent = API-only mode (what dev uses) |
+| `APP_PORT` | compose | host port for the app container (default 3000) |
 | `LOG_LEVEL`, `NODE_ENV` | api-server | pino level; `pino-pretty` transport off in production |
 
 Local values live in `.env` (gitignored, copied from `.env.example`), loaded via Node's
@@ -76,7 +80,30 @@ artifacts/meal-planner/        ← React 19 + Vite + wouter + shadcn/ui, the act
 scripts/                       ← pnpm enforcement guard + a stub
 attached_assets/               ← source PDFs / generated images used during development
 compose.dev.yaml               ← Postgres for local dev (host port 5442)
+compose.yaml                   ← full prod stack: app image + Postgres
+Dockerfile                     ← multi-stage, linux/amd64, single app image
 ```
+
+## Serving model
+
+One Express process serves both, replacing Replit's `router = "application"`:
+
+- **dev** — Vite owns `/` with HMR and proxies `/api` to the API server on 3000. No build
+  output exists, so `mountStatic` logs "serving API only" and does nothing.
+- **prod** — `artifacts/api-server/src/static.ts` serves `artifacts/meal-planner/dist/public`.
+  Hashed `/assets/*` are `immutable, max-age=1y`; `index.html` is `no-cache`; the SPA fallback
+  returns `index.html` for any non-`/api` GET so wouter deep links survive a refresh.
+
+Three ordering rules there are load-bearing:
+
+1. `Cache-Control: no-store` is scoped to `/api`, **not** global. Global would make every
+   content-hashed asset uncacheable — invisible, the app just gets slow.
+2. The SPA fallback skips `/api`, and a JSON 404 handler sits after the API router, so a
+   typo'd endpoint returns `{"error":"Not found"}` rather than an HTML document.
+3. `mountStatic` runs after `app.use("/api", router)`, so the API can never be shadowed.
+
+The fallback is a bare middleware, not `app.get("*")` — Express 5 uses path-to-regexp v8,
+which rejects a bare `"*"` as a path.
 
 ## The one workflow that matters: contract-first codegen
 

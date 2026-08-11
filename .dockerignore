@@ -1,0 +1,20 @@
+node_modules
+**/node_modules
+dist
+**/dist
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+.git
+.github
+
+# Real recipe data — must never enter an image layer.
+backups
+.env
+.env.local
+
+# Source PDFs and generated images used during development; not needed at runtime.
+attached_assets
+
+*.md
+!README.md

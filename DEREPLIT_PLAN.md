@@ -4,9 +4,8 @@ Move Kitchen Notebook off Replit onto a self-hosted Docker stack: one app contai
 (Express serving both the API and the built React bundle) plus one Postgres container,
 orchestrated with Docker Compose.
 
-Status: **phases 1, 2, 3 and 5 complete** (PRs #1, #2, #3, #4) · phase 4 dev-half complete ·
-**phase 0 closed as not-needed** (see below). Remaining: phase 4 prod-half (static serving),
-phase 6 (Dockerfile/Compose), phase 7 (ops), phase 8 (docs).
+Status: **phases 1–6 complete** · **phase 0 closed as not-needed**. The app now runs entirely
+in Docker: `docker compose up --build -d`. Remaining: phase 7 (ops/backups), phase 8 (docs).
 
 ---
 
