@@ -1,0 +1,29 @@
+# Development stack: Postgres only.
+# The API server and Vite dev server run on the host so you keep HMR and fast restarts.
+# Full single-container production stack lives in compose.yaml (not written yet — see DEREPLIT_PLAN.md phase 6).
+#
+#   docker compose -f compose.dev.yaml up -d
+#
+# Host port is 5433, not 5432, because 5432 is already taken by another Postgres on this machine.
+
+services:
+  db:
+    image: postgres:17-bookworm
+    container_name: recipebox-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-recipebox}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-recipebox}
+      POSTGRES_DB: ${POSTGRES_DB:-recipebox}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-recipebox} -d ${POSTGRES_DB:-recipebox}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
