@@ -1,12 +1,13 @@
 # Kitchen Notebook — working context
 
-Personal meal-planning app built on Replit: a recipe box, a weekly meal-plan grid, and an
-auto-generated grocery list, plus three AI features (import a recipe, generate a recipe,
-generate a week's plan).
+Personal meal-planning app: a recipe box, a weekly meal-plan grid, and an auto-generated
+grocery list, plus three AI features (import a recipe, generate a recipe, generate a
+week's plan).
 
-`replit.md` is the product/architecture doc maintained for the Replit agent — read it too.
-This file is the engineering-facing companion: how the pieces fit, what the workflows are,
-and where the traps are.
+Originally built on Replit; `DEREPLIT_PLAN.md` tracks the migration to a self-hosted
+Docker stack and which phases are done. `replit.md` is the product/architecture doc (to be
+renamed `PROJECT.md` in phase 8) — read it too. This file is the engineering-facing
+companion: how the pieces fit, what the workflows are, and where the traps are.
 
 ## Commands
 
@@ -35,8 +36,6 @@ pnpm run typecheck
 - `pnpm --filter @workspace/db run push` — **dev-only** schema push, no migration recorded.
   Never point this at a database holding real data.
 - pnpm only. The root `preinstall` hard-fails any other package manager.
-- `scripts/post-merge.sh` (wired via `.replit` `[postMerge]`) runs `pnpm install --frozen-lockfile`
-  then a db push after every merge.
 
 **There is no test suite** — no vitest/jest config, no `*.test.*` files anywhere. `pnpm run typecheck`
 is the only automated check. Verify behavior by running the app.
@@ -69,16 +68,13 @@ lib/api-client-react/          ← generated react-query hooks + TS types (@work
   src/custom-fetch.ts          ← hand-written fetch mutator (baseUrl, auth-token hook, ApiError)
 lib/api-zod/                   ← generated Zod request/response schemas (@workspace/api-zod)
 lib/db/                        ← Drizzle schema + pool (@workspace/db)
-lib/integrations-openai-ai-server/  ← OpenAI SDK pointed at the Replit proxy
+lib/integrations-openai-ai-server/  ← OpenAI SDK, still pointed at the Replit proxy (phase 5)
 artifacts/api-server/          ← Express 5 API, mounted at /api, esbuild → dist/index.mjs
 artifacts/meal-planner/        ← React 19 + Vite + wouter + shadcn/ui, the actual product
-artifacts/mockup-sandbox/      ← Replit design scratchpad, NOT part of the product
-scripts/                       ← post-merge hook + a stub
+scripts/                       ← pnpm enforcement guard + a stub
 attached_assets/               ← source PDFs / generated images used during development
+compose.dev.yaml               ← Postgres for local dev (host port 5442)
 ```
-
-`artifacts/mockup-sandbox` carries a near-duplicate copy of `components/ui/*`. When editing
-shadcn primitives, only `artifacts/meal-planner/src/components/ui/` affects the app.
 
 ## The one workflow that matters: contract-first codegen
 
