@@ -29,6 +29,11 @@ export const recipesTable = pgTable("recipes", {
   /** Whatever the source gave beyond the four macros (fiber, sugars, sodium, ...). */
   nutritionExtras: jsonb("nutrition_extras").$type<Record<string, unknown> | null>(),
   /**
+   * Per-ingredient assumptions behind a derived value. Kept so a surprising total can be
+   * explained and a bad assumption spotted, instead of the estimate being an opaque number.
+   */
+  nutritionBreakdown: jsonb("nutrition_breakdown").$type<unknown[] | null>(),
+  /**
    * Hash of the inputs the numbers describe (ingredients + servings). Staleness is derived by
    * comparing this on read, rather than a stored boolean that every write path would have to
    * remember to maintain and would eventually get wrong.

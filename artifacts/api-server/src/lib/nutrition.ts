@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Recipe as RecipeRow } from "@workspace/db";
-import type { Ingredient, Nutrition, NutritionInput } from "@workspace/api-zod";
+import type { Ingredient, Nutrition, NutritionInput, NutritionIngredientBreakdown } from "@workspace/api-zod";
 
 /**
  * Per-serving nutrition storage helpers.
@@ -46,6 +46,7 @@ export function toNutrition(recipe: RecipeRow): Nutrition | null {
     fatG: recipe.fatG,
     source: recipe.nutritionSource,
     extras: (recipe.nutritionExtras ?? undefined) as Nutrition["extras"],
+    breakdown: (recipe.nutritionBreakdown ?? null) as NutritionIngredientBreakdown[] | null,
     // A missing hash (nothing has ever been recorded against these inputs) is not stale — only
     // a hash that disagrees with the current recipe is.
     stale:
@@ -62,6 +63,7 @@ export interface NutritionColumns {
   fatG: number | null;
   nutritionSource: "stated" | "estimated" | "computed" | "manual" | null;
   nutritionExtras: Record<string, unknown> | null;
+  nutritionBreakdown: unknown[] | null;
   nutritionInputHash: string | null;
   nutritionUpdatedAt: Date | null;
 }
@@ -71,6 +73,7 @@ export function toNutritionColumns(
   nutrition: NutritionInput | null | undefined,
   ingredients: Ingredient[],
   servings: number | null,
+  breakdown?: NutritionIngredientBreakdown[] | null,
 ): NutritionColumns {
   if (!nutrition) {
     return {
@@ -80,6 +83,7 @@ export function toNutritionColumns(
       fatG: null,
       nutritionSource: null,
       nutritionExtras: null,
+      nutritionBreakdown: null,
       nutritionInputHash: null,
       nutritionUpdatedAt: null,
     };
@@ -92,6 +96,7 @@ export function toNutritionColumns(
     fatG: nutrition.fatG ?? null,
     nutritionSource: nutrition.source,
     nutritionExtras: (nutrition.extras ?? null) as Record<string, unknown> | null,
+    nutritionBreakdown: breakdown ?? null,
     nutritionInputHash: nutritionInputHash(ingredients, servings),
     nutritionUpdatedAt: new Date(),
   };

@@ -3,9 +3,9 @@
 Give every recipe per-serving macros: **calories, protein, carbohydrates, fat**. Take them
 from the source when the source states them; derive them when it doesn't.
 
-Status: **Phases 1 and 4 (backfill) complete.** 31 of 34 existing recipes now carry the
-publisher's own per-serving values, recovered with **no AI calls**. Remaining: phase 2
-(estimate the 3 recipes not in the book), phase 3 (USDA grounding), and meal-plan daily totals.
+Status: **Phases 1, 2 and 4 complete — all 34 recipes now have nutrition** (31 stated, 3
+estimated). Remaining: meal-plan daily totals, and a decision on phase 3 that the measurements
+below have made much less clear-cut.
 
 ---
 
@@ -191,6 +191,43 @@ Staleness, manual override, and all three UI states confirmed in the browser.
 (`Calories: 189; Protein: 7g` → 189 / 7). Confirm a recipe with no panel stores nulls rather
 than invented numbers — the schema must allow null and the prompt must forbid guessing here.
 
+### Phase 2 — Estimate when missing ✅ DONE — but read the accuracy numbers
+
+`POST /recipes/{id}/nutrition`. The model returns a gram weight and per-100g composition per
+ingredient; all summing and the per-serving division happen in `nutrition-estimate.ts`. The
+per-ingredient breakdown is stored and shown in the UI.
+
+**Measured accuracy against recipes whose published panels we already have** (estimated on
+throwaway copies so no real data was touched):
+
+| recipe | published | estimated | error |
+| --- | --- | --- | --- |
+| Creamy Traditional Hummus | 189 | 181 | 4% |
+| Crispy Zucchini Fritters | 446 | 248 | 44% |
+| Baklava and Honey | 1235 | 788 | 36% |
+| Grilled Salmon | 238 | 86 | 64% |
+
+**Mean error ~37%** (down from 61% before a prompt fix for cooking losses). This is a rough
+guide, not a number to count on, and the UI says so.
+
+**The important finding — phase 3 would probably not fix this.** The breakdown made the causes
+visible, and none of them are composition errors:
+
+- *Fritters*: the first attempt counted all 3 cups of frying oil (654g, 5,781 kcal) as eaten.
+  Published panels count only what is absorbed. Telling the model to count the eaten weight
+  moved it from 138% over to 44% under — the right idea, badly calibrated.
+- *Salmon*: the saved ingredient is "5 ounces salmon fillets" for 4 servings; the published
+  figure implies 5oz *per serving*. The estimate is arithmetically correct and the **source
+  data is wrong** — ingestion flattened "4 (5-ounce) fillets".
+- *Baklava*: butter and phyllo quantity assumptions.
+
+Every one is a **quantity** problem — how much is bought, how much is eaten, what the recipe
+actually said. USDA grounding replaces per-100g composition figures, which were never the
+weak link. Worth re-testing that assumption before investing in the import.
+
+<details>
+<summary>Original phase 2 plan</summary>
+
 ### Phase 2 — Estimate when missing
 
 - `POST /recipes/{id}/nutrition` — computes and stores. Explicit and re-runnable, rather than
@@ -205,6 +242,8 @@ than invented numbers — the schema must allow null and the prompt must forbid 
 **Verify:** spot-check against known values. The cookbook is an ideal test set — estimate a
 recipe whose stated panel we already have, and compare. That gives a real accuracy number
 rather than a vibe.
+
+</details>
 
 ### Phase 3 — Ground it in USDA FDC (accuracy upgrade)
 
@@ -279,7 +318,7 @@ Still to do here: meal-plan daily totals, which need `nutrition` on `RecipeSumma
 
 | risk | severity | mitigation |
 | --- | --- | --- |
-| Volume→mass conversion is wrong for dense/light ingredients | **High** — silently wrong macros | Let the model give gram weights (it knows "1 cup flour ≈ 120g"); validate against USDA portions in Phase 3; show the per-ingredient breakdown so errors are visible |
+| ~~Volume→mass conversion is wrong~~ **CONFIRMED, and worse than expected** | **High** — measured ~37% mean calorie error | The breakdown UI makes each assumption visible, and the estimate is labelled as approximate. The dominant errors are cooking losses and bad source quantities, not densities — see phase 2 notes |
 | Model arithmetic errors | High | Never let it sum or divide; compute in code and cross-check calories against the 4/4/9 rule |
 | Ingredient matching picks the wrong food | Medium | Store the match and its confidence; surface low-confidence matches instead of hiding them |
 | Nutrition silently goes stale after an edit | Medium | Input hash, surfaced as a flag |

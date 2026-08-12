@@ -112,6 +112,68 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /recipes/{id}/nutrition:
+    post:
+      operationId: estimateRecipeNutrition
+      tags: [recipes]
+      summary: Estimate per-serving nutrition for a recipe from its ingredients
+      description: >
+        Derives per-serving macros for a recipe whose source never stated them. Deliberately a
+        separate, explicit call rather than something that happens on save: it costs money, so
+        it should be something the user asks for and can repeat, not a hidden charge on every
+        edit.
+
+        The model is asked only for a gram weight and a per-100g composition per ingredient;
+        all summing and the per-serving division happen server-side. Models are unreliable at
+        multi-step arithmetic, and a wrong total looks exactly like a right one.
+
+        Overwrites any previous derived value. Refuses to overwrite a `manual` correction
+        unless `force` is set.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EstimateNutritionInput"
+      responses:
+        "200":
+          description: The recipe, with freshly estimated nutrition.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Recipe"
+        "404":
+          description: Recipe not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The recipe has a manual correction and `force` was not set.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: >
+            No usable estimate could be produced — the recipe has no servings, or the result
+            failed the plausibility checks.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI features are not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /recipes/pdf-outline:
     post:
       operationId: outlineRecipePdf
@@ -604,6 +666,32 @@ components:
             sugars, saturated fat, cholesterol, sodium. Kept because it costs nothing to
             retain and is otherwise discarded permanently.
 
+    EstimateNutritionInput:
+      type: object
+      properties:
+        force:
+          type: boolean
+          description: >
+            Replace a manual correction. Without it a hand-edited value is preserved, because
+            silently overwriting someone's correction with a machine estimate is worse than
+            refusing.
+
+    NutritionIngredientBreakdown:
+      type: object
+      description: >
+        What the estimate assumed for one ingredient. Stored so a surprising total can be
+        explained — "why is this 900 calories?" is answerable with "it assumed 200g of olive
+        oil" — and so a bad assumption is visible rather than buried in a single number.
+      required: [name, grams, calories, proteinG, carbsG, fatG]
+      properties:
+        name: { type: string, description: The ingredient as the estimator understood it. }
+        grams: { type: ["number", "null"], description: Assumed weight for the stated quantity. }
+        calories: { type: ["number", "null"] }
+        proteinG: { type: ["number", "null"] }
+        carbsG: { type: ["number", "null"] }
+        fatG: { type: ["number", "null"] }
+        note: { type: ["string", "null"], description: Optional caveat, e.g. "assumed drained weight". }
+
     Nutrition:
       allOf:
         - $ref: "#/components/schemas/NutritionInput"
@@ -618,6 +706,11 @@ components:
                 on read by comparing a hash of the inputs — never a stored flag, which would
                 have to be maintained by every write path and would eventually be wrong.
             updatedAt: { type: ["string", "null"], format: date-time }
+            breakdown:
+              type: ["array", "null"]
+              items:
+                $ref: "#/components/schemas/NutritionIngredientBreakdown"
+              description: Present for derived values; absent when the source stated them directly.
 
     Ingredient:
       type: object

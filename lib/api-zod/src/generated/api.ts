@@ -55,7 +55,16 @@ export const ListRecipesResponseItem = zod.object({
   "extras": zod.record(zod.string(), zod.unknown()).nullish().describe('Anything beyond the four macros that the source happened to provide — fiber, sugars, saturated fat, cholesterol, sodium. Kept because it costs nothing to retain and is otherwise discarded permanently.\n')
 }).describe('Per-serving macros. All values may be null when unknown; never guess to fill them in.').and(zod.object({
   "stale": zod.boolean().describe('True when the recipe\'s ingredients or servings have changed since these numbers were recorded, so they no longer describe the current recipe. Computed on read by comparing a hash of the inputs — never a stored flag, which would have to be maintained by every write path and would eventually be wrong.\n'),
-  "updatedAt": zod.coerce.date().nullable()
+  "updatedAt": zod.coerce.date().nullable(),
+  "breakdown": zod.array(zod.object({
+  "name": zod.string().describe('The ingredient as the estimator understood it.'),
+  "grams": zod.number().nullable().describe('Assumed weight for the stated quantity.'),
+  "calories": zod.number().nullable(),
+  "proteinG": zod.number().nullable(),
+  "carbsG": zod.number().nullable(),
+  "fatG": zod.number().nullable(),
+  "note": zod.string().nullish().describe('Optional caveat')
+}).describe('What the estimate assumed for one ingredient. Stored so a surprising total can be explained — \"why is this 900 calories?\" is answerable with \"it assumed 200g of olive oil\" — and so a bad assumption is visible rather than buried in a single number.\n')).nullish().describe('Present for derived values; absent when the source stated them directly.')
 })),zod.null()]).optional()
 })
 export const ListRecipesResponse = zod.array(ListRecipesResponseItem)
@@ -129,7 +138,16 @@ export const CreateRecipeResponse = zod.object({
   "extras": zod.record(zod.string(), zod.unknown()).nullish().describe('Anything beyond the four macros that the source happened to provide — fiber, sugars, saturated fat, cholesterol, sodium. Kept because it costs nothing to retain and is otherwise discarded permanently.\n')
 }).describe('Per-serving macros. All values may be null when unknown; never guess to fill them in.').and(zod.object({
   "stale": zod.boolean().describe('True when the recipe\'s ingredients or servings have changed since these numbers were recorded, so they no longer describe the current recipe. Computed on read by comparing a hash of the inputs — never a stored flag, which would have to be maintained by every write path and would eventually be wrong.\n'),
-  "updatedAt": zod.coerce.date().nullable()
+  "updatedAt": zod.coerce.date().nullable(),
+  "breakdown": zod.array(zod.object({
+  "name": zod.string().describe('The ingredient as the estimator understood it.'),
+  "grams": zod.number().nullable().describe('Assumed weight for the stated quantity.'),
+  "calories": zod.number().nullable(),
+  "proteinG": zod.number().nullable(),
+  "carbsG": zod.number().nullable(),
+  "fatG": zod.number().nullable(),
+  "note": zod.string().nullish().describe('Optional caveat')
+}).describe('What the estimate assumed for one ingredient. Stored so a surprising total can be explained — \"why is this 900 calories?\" is answerable with \"it assumed 200g of olive oil\" — and so a bad assumption is visible rather than buried in a single number.\n')).nullish().describe('Present for derived values; absent when the source stated them directly.')
 })),zod.null()]).optional()
 })
 
@@ -177,6 +195,64 @@ export const IngestRecipesResponse = zod.object({
 }).describe('Per-serving macros. All values may be null when unknown; never guess to fill them in.'),zod.null()]).optional().describe('Per-serving nutrition as printed by the source, or null when the source did not state it. Never inferred at this stage — an estimate would be indistinguishable from a printed panel once stored.\n')
 }).describe('A recipe extracted from ingested content, not yet saved.')),
   "warnings": zod.array(zod.string()).describe('Non-fatal notes about the extraction (e.g. truncated input, ambiguous quantities).')
+})
+
+
+/**
+ * Derives per-serving macros for a recipe whose source never stated them. Deliberately a separate, explicit call rather than something that happens on save: it costs money, so it should be something the user asks for and can repeat, not a hidden charge on every edit.
+ * The model is asked only for a gram weight and a per-100g composition per ingredient; all summing and the per-serving division happen server-side. Models are unreliable at multi-step arithmetic, and a wrong total looks exactly like a right one.
+ * Overwrites any previous derived value. Refuses to overwrite a `manual` correction unless `force` is set.
+ * @summary Estimate per-serving nutrition for a recipe from its ingredients
+ */
+export const EstimateRecipeNutritionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const EstimateRecipeNutritionBody = zod.object({
+  "force": zod.boolean().optional().describe('Replace a manual correction. Without it a hand-edited value is preserved, because silently overwriting someone\'s correction with a machine estimate is worse than refusing.\n')
+})
+
+
+
+
+export const EstimateRecipeNutritionResponse = zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "ingredients": zod.array(zod.object({
+  "name": zod.string().min(1),
+  "quantity": zod.number().nullish(),
+  "unit": zod.string().nullish(),
+  "category": zod.enum(['produce', 'dairy', 'meat_seafood', 'bakery', 'pantry', 'frozen', 'beverages', 'spices', 'other'])
+})),
+  "instructions": zod.string(),
+  "servings": zod.number().int().nullable(),
+  "prepMinutes": zod.number().int().nullable(),
+  "cookMinutes": zod.number().int().nullable(),
+  "tags": zod.array(zod.string()),
+  "photoUrl": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "nutrition": zod.union([zod.object({
+  "calories": zod.number().int().nullable().describe('kcal per serving'),
+  "proteinG": zod.number().nullable(),
+  "carbsG": zod.number().nullable(),
+  "fatG": zod.number().nullable(),
+  "source": zod.enum(['stated', 'estimated', 'computed', 'manual']).describe('Where the numbers came from. `stated` means the source document printed them (a cookbook\'s \"PER SERVING\" panel) — the most trustworthy case, since it reflects the recipe as actually tested. `estimated` and `computed` are derived by us. `manual` is a user correction and must never be overwritten automatically. This is surfaced in the UI, so a tested panel is never presented as though it were our guess.\n'),
+  "extras": zod.record(zod.string(), zod.unknown()).nullish().describe('Anything beyond the four macros that the source happened to provide — fiber, sugars, saturated fat, cholesterol, sodium. Kept because it costs nothing to retain and is otherwise discarded permanently.\n')
+}).describe('Per-serving macros. All values may be null when unknown; never guess to fill them in.').and(zod.object({
+  "stale": zod.boolean().describe('True when the recipe\'s ingredients or servings have changed since these numbers were recorded, so they no longer describe the current recipe. Computed on read by comparing a hash of the inputs — never a stored flag, which would have to be maintained by every write path and would eventually be wrong.\n'),
+  "updatedAt": zod.coerce.date().nullable(),
+  "breakdown": zod.array(zod.object({
+  "name": zod.string().describe('The ingredient as the estimator understood it.'),
+  "grams": zod.number().nullable().describe('Assumed weight for the stated quantity.'),
+  "calories": zod.number().nullable(),
+  "proteinG": zod.number().nullable(),
+  "carbsG": zod.number().nullable(),
+  "fatG": zod.number().nullable(),
+  "note": zod.string().nullish().describe('Optional caveat')
+}).describe('What the estimate assumed for one ingredient. Stored so a surprising total can be explained — \"why is this 900 calories?\" is answerable with \"it assumed 200g of olive oil\" — and so a bad assumption is visible rather than buried in a single number.\n')).nullish().describe('Present for derived values; absent when the source stated them directly.')
+})),zod.null()]).optional()
 })
 
 
@@ -294,7 +370,16 @@ export const GetRecipeResponse = zod.object({
   "extras": zod.record(zod.string(), zod.unknown()).nullish().describe('Anything beyond the four macros that the source happened to provide — fiber, sugars, saturated fat, cholesterol, sodium. Kept because it costs nothing to retain and is otherwise discarded permanently.\n')
 }).describe('Per-serving macros. All values may be null when unknown; never guess to fill them in.').and(zod.object({
   "stale": zod.boolean().describe('True when the recipe\'s ingredients or servings have changed since these numbers were recorded, so they no longer describe the current recipe. Computed on read by comparing a hash of the inputs — never a stored flag, which would have to be maintained by every write path and would eventually be wrong.\n'),
-  "updatedAt": zod.coerce.date().nullable()
+  "updatedAt": zod.coerce.date().nullable(),
+  "breakdown": zod.array(zod.object({
+  "name": zod.string().describe('The ingredient as the estimator understood it.'),
+  "grams": zod.number().nullable().describe('Assumed weight for the stated quantity.'),
+  "calories": zod.number().nullable(),
+  "proteinG": zod.number().nullable(),
+  "carbsG": zod.number().nullable(),
+  "fatG": zod.number().nullable(),
+  "note": zod.string().nullish().describe('Optional caveat')
+}).describe('What the estimate assumed for one ingredient. Stored so a surprising total can be explained — \"why is this 900 calories?\" is answerable with \"it assumed 200g of olive oil\" — and so a bad assumption is visible rather than buried in a single number.\n')).nullish().describe('Present for derived values; absent when the source stated them directly.')
 })),zod.null()]).optional()
 })
 
@@ -371,7 +456,16 @@ export const UpdateRecipeResponse = zod.object({
   "extras": zod.record(zod.string(), zod.unknown()).nullish().describe('Anything beyond the four macros that the source happened to provide — fiber, sugars, saturated fat, cholesterol, sodium. Kept because it costs nothing to retain and is otherwise discarded permanently.\n')
 }).describe('Per-serving macros. All values may be null when unknown; never guess to fill them in.').and(zod.object({
   "stale": zod.boolean().describe('True when the recipe\'s ingredients or servings have changed since these numbers were recorded, so they no longer describe the current recipe. Computed on read by comparing a hash of the inputs — never a stored flag, which would have to be maintained by every write path and would eventually be wrong.\n'),
-  "updatedAt": zod.coerce.date().nullable()
+  "updatedAt": zod.coerce.date().nullable(),
+  "breakdown": zod.array(zod.object({
+  "name": zod.string().describe('The ingredient as the estimator understood it.'),
+  "grams": zod.number().nullable().describe('Assumed weight for the stated quantity.'),
+  "calories": zod.number().nullable(),
+  "proteinG": zod.number().nullable(),
+  "carbsG": zod.number().nullable(),
+  "fatG": zod.number().nullable(),
+  "note": zod.string().nullish().describe('Optional caveat')
+}).describe('What the estimate assumed for one ingredient. Stored so a surprising total can be explained — \"why is this 900 calories?\" is answerable with \"it assumed 200g of olive oil\" — and so a bad assumption is visible rather than buried in a single number.\n')).nullish().describe('Present for derived values; absent when the source stated them directly.')
 })),zod.null()]).optional()
 })
 

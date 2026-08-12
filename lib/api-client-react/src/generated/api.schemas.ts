@@ -80,11 +80,47 @@ export interface NutritionInput {
   extras?: NutritionInputExtras;
 }
 
+export interface EstimateNutritionInput {
+  /** Replace a manual correction. Without it a hand-edited value is preserved, because silently overwriting someone's correction with a machine estimate is worse than refusing. */
+  force?: boolean;
+}
+
+/**
+ * What the estimate assumed for one ingredient. Stored so a surprising total can be explained — "why is this 900 calories?" is answerable with "it assumed 200g of olive oil" — and so a bad assumption is visible rather than buried in a single number.
+ */
+export interface NutritionIngredientBreakdown {
+  /** The ingredient as the estimator understood it. */
+  name: string;
+  /**
+     * Assumed weight for the stated quantity.
+     * @nullable
+     */
+  grams: number | null;
+  /** @nullable */
+  calories: number | null;
+  /** @nullable */
+  proteinG: number | null;
+  /** @nullable */
+  carbsG: number | null;
+  /** @nullable */
+  fatG: number | null;
+  /**
+     * Optional caveat
+     * @nullable
+     */
+  note?: string | null;
+}
+
 export type Nutrition = NutritionInput & ({
   /** True when the recipe's ingredients or servings have changed since these numbers were recorded, so they no longer describe the current recipe. Computed on read by comparing a hash of the inputs — never a stored flag, which would have to be maintained by every write path and would eventually be wrong. */
   stale: boolean;
   /** @nullable */
   updatedAt: string | null;
+  /**
+     * Present for derived values; absent when the source stated them directly.
+     * @nullable
+     */
+  breakdown?: NutritionIngredientBreakdown[] | null;
 });
 
 export interface Ingredient {

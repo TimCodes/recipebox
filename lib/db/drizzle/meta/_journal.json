@@ -15,6 +15,13 @@
       "when": 1786567984460,
       "tag": "0001_freezing_cannonball",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786573025670,
+      "tag": "0002_milky_iceman",
+      "breakpoints": true
     }
   ]
 }

@@ -10,6 +10,9 @@ import {
   DeleteRecipeParams,
   IngestRecipesBody,
   OutlineRecipePdfBody,
+  EstimateRecipeNutritionParams,
+  EstimateRecipeNutritionBody,
+  EstimateRecipeNutritionResponse,
   OutlineRecipePdfResponse,
   GenerateRecipeBody,
   ListRecipesResponse,
@@ -24,6 +27,7 @@ import { OpenAINotConfiguredError } from "@workspace/openai";
 import { extractRecipesFromText, RecipeIngestionError } from "../lib/recipe-ingestion";
 import { toNutrition, toNutritionColumns, isEmptyNutrition } from "../lib/nutrition";
 import { extractPdfPages, outlinePdf, textForPages, PdfOutlineError } from "../lib/pdf-outline";
+import { estimateNutrition, NutritionEstimateError } from "../lib/nutrition-estimate";
 import { generateRecipeFromPrompt, RecipeGenerationError } from "../lib/recipe-generation";
 import { retrieveRelevantRecipes } from "../lib/recipe-retrieval";
 
@@ -165,6 +169,56 @@ router.post("/recipes/ingest", async (req, res): Promise<void> => {
     }
     req.log.error({ err }, "Unexpected error during recipe ingestion");
     res.status(500).json({ error: "An unexpected error occurred while extracting the recipe." });
+  }
+});
+
+router.post("/recipes/:id/nutrition", async (req, res): Promise<void> => {
+  const params = EstimateRecipeNutritionParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const body = EstimateRecipeNutritionBody.safeParse(req.body ?? {});
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+
+  const [recipe] = await db.select().from(recipesTable).where(eq(recipesTable.id, params.data.id));
+  if (!recipe) {
+    res.status(404).json({ error: "Recipe not found" });
+    return;
+  }
+
+  // A hand-corrected value is the one thing an automated estimate must not quietly replace.
+  if (recipe.nutritionSource === "manual" && !body.data.force) {
+    res.status(409).json({
+      error: "This recipe's nutrition was edited by hand. Re-estimating would discard that; send force to replace it.",
+    });
+    return;
+  }
+
+  try {
+    const { nutrition, breakdown } = await estimateNutrition(recipe);
+    const [updated] = await db
+      .update(recipesTable)
+      .set(toNutritionColumns(nutrition, recipe.ingredients, recipe.servings, breakdown))
+      .where(eq(recipesTable.id, recipe.id))
+      .returning();
+
+    res.json(EstimateRecipeNutritionResponse.parse(withNutrition(updated)));
+  } catch (err) {
+    if (err instanceof OpenAINotConfiguredError) {
+      res.status(503).json({ error: err.message });
+      return;
+    }
+    if (err instanceof NutritionEstimateError) {
+      req.log.warn({ err: err.message }, "Nutrition estimate rejected");
+      res.status(422).json({ error: err.message });
+      return;
+    }
+    req.log.error({ err }, "Unexpected error while estimating nutrition");
+    res.status(500).json({ error: "An unexpected error occurred while estimating nutrition." });
   }
 });
 

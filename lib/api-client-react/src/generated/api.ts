@@ -23,6 +23,7 @@ import type {
   ClearGroceryListParams,
   DashboardSummary,
   ErrorResponse,
+  EstimateNutritionInput,
   GenerateGroceryListInput,
   GenerateMealPlanInput,
   GenerateRecipeInput,
@@ -378,6 +379,81 @@ export const useIngestRecipes = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getIngestRecipesMutationOptions(options));
+    }
+
+export const getEstimateRecipeNutritionUrl = (id: number,) => {
+
+
+
+
+  return `/api/recipes/${id}/nutrition`
+}
+
+/**
+ * Derives per-serving macros for a recipe whose source never stated them. Deliberately a separate, explicit call rather than something that happens on save: it costs money, so it should be something the user asks for and can repeat, not a hidden charge on every edit.
+ * The model is asked only for a gram weight and a per-100g composition per ingredient; all summing and the per-serving division happen server-side. Models are unreliable at multi-step arithmetic, and a wrong total looks exactly like a right one.
+ * Overwrites any previous derived value. Refuses to overwrite a `manual` correction unless `force` is set.
+ * @summary Estimate per-serving nutrition for a recipe from its ingredients
+ */
+export const estimateRecipeNutrition = async (id: number,
+    estimateNutritionInput?: EstimateNutritionInput, options?: Parameters<typeof customFetch>[1]): Promise<Recipe> => {
+
+  return customFetch<Recipe>(getEstimateRecipeNutritionUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(estimateNutritionInput)
+  }
+);}
+
+
+
+
+
+export const getEstimateRecipeNutritionMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof estimateRecipeNutrition>>, TError,{id: number;data?: BodyType<EstimateNutritionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof estimateRecipeNutrition>>, TError,{id: number;data?: BodyType<EstimateNutritionInput>}, TContext> => {
+
+const mutationKey = ['estimateRecipeNutrition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof estimateRecipeNutrition>>, {id: number;data?: BodyType<EstimateNutritionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  estimateRecipeNutrition(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EstimateRecipeNutritionMutationResult = NonNullable<Awaited<ReturnType<typeof estimateRecipeNutrition>>>
+    export type EstimateRecipeNutritionMutationBody = BodyType<EstimateNutritionInput> | undefined
+    export type EstimateRecipeNutritionMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Estimate per-serving nutrition for a recipe from its ingredients
+ */
+export const useEstimateRecipeNutrition = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof estimateRecipeNutrition>>, TError,{id: number;data?: BodyType<EstimateNutritionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof estimateRecipeNutrition>>,
+        TError,
+        {id: number;data?: BodyType<EstimateNutritionInput>},
+        TContext
+      > => {
+      return useMutation(getEstimateRecipeNutritionMutationOptions(options));
     }
 
 export const getOutlineRecipePdfUrl = () => {

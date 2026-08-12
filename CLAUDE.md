@@ -167,6 +167,13 @@ full schema+data dump.
   and our own estimate must never be presented alike. Staleness is **derived**, not stored: the
   hash covers ingredients + servings, and the API compares it on read, so no write path can
   forget to invalidate. See `artifacts/api-server/src/lib/nutrition.ts` and `NUTRITION_PLAN.md`.
+  `POST /recipes/{id}/nutrition` estimates when a source stated nothing: the model supplies
+  only per-ingredient gram weights and per-100g composition, and **all arithmetic happens in
+  `nutrition-estimate.ts`** — a model that sums eight ingredients and divides by servings
+  produces wrong totals that look exactly like right ones. Measured mean error is **~37%**, so
+  estimates are labelled approximate in the UI and the per-ingredient breakdown is shown.
+  `parseNutritionPanel()` reads a printed panel with no AI at all; `scripts/backfill-nutrition.ts`
+  uses it to fill recipes from their source cookbook for free.
 - **`grocery_list_items`** — scoped by `weekStart` (`mode:"string"`), `source` is `auto` or
   `manual`, `recipeSources` is a denormalized `jsonb` snapshot of `{id, title}` so tags survive
   a source recipe being renamed or deleted.

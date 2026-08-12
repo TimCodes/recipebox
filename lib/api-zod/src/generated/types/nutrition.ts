@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { NutritionIngredientBreakdown } from './nutritionIngredientBreakdown';
 import type { NutritionInput } from './nutritionInput';
 
 export type Nutrition = NutritionInput & ({
@@ -12,4 +13,9 @@ export type Nutrition = NutritionInput & ({
   stale: boolean;
   /** @nullable */
   updatedAt: Date | null;
+  /**
+     * Present for derived values; absent when the source stated them directly.
+     * @nullable
+     */
+  breakdown?: NutritionIngredientBreakdown[] | null;
 });
