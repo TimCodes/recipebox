@@ -161,6 +161,12 @@ full schema+data dump.
 - **`meal_plan_entries`** — `date` (`mode:"string"`), `mealSlot` enum
   (breakfast/lunch/dinner/snack), `recipeId` FK with `onDelete: cascade`. No uniqueness
   constraint on (date, slot) — duplicates are prevented in application code only.
+- **Nutrition** lives on `recipes` as columns (`calories`, `protein_g`, `carbs_g`, `fat_g`,
+  `nutrition_source`, `nutrition_extras`, `nutrition_input_hash`, `nutrition_updated_at`), all
+  nullable. `nutrition_source` is required whenever values exist — a publisher's printed panel
+  and our own estimate must never be presented alike. Staleness is **derived**, not stored: the
+  hash covers ingredients + servings, and the API compares it on read, so no write path can
+  forget to invalidate. See `artifacts/api-server/src/lib/nutrition.ts` and `NUTRITION_PLAN.md`.
 - **`grocery_list_items`** — scoped by `weekStart` (`mode:"string"`), `source` is `auto` or
   `manual`, `recipeSources` is a denormalized `jsonb` snapshot of `{id, title}` so tags survive
   a source recipe being renamed or deleted.

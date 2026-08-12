@@ -575,6 +575,50 @@ components:
       type: string
       enum: [breakfast, lunch, dinner, snack]
 
+    NutritionSource:
+      type: string
+      enum: [stated, estimated, computed, manual]
+      description: >
+        Where the numbers came from. `stated` means the source document printed them (a
+        cookbook's "PER SERVING" panel) — the most trustworthy case, since it reflects the
+        recipe as actually tested. `estimated` and `computed` are derived by us. `manual` is a
+        user correction and must never be overwritten automatically. This is surfaced in the
+        UI, so a tested panel is never presented as though it were our guess.
+
+    NutritionInput:
+      type: object
+      description: Per-serving macros. All values may be null when unknown; never guess to fill them in.
+      required: [calories, proteinG, carbsG, fatG, source]
+      properties:
+        calories: { type: ["integer", "null"], description: kcal per serving }
+        proteinG: { type: ["number", "null"] }
+        carbsG: { type: ["number", "null"] }
+        fatG: { type: ["number", "null"] }
+        source:
+          $ref: "#/components/schemas/NutritionSource"
+        extras:
+          type: ["object", "null"]
+          additionalProperties: true
+          description: >
+            Anything beyond the four macros that the source happened to provide — fiber,
+            sugars, saturated fat, cholesterol, sodium. Kept because it costs nothing to
+            retain and is otherwise discarded permanently.
+
+    Nutrition:
+      allOf:
+        - $ref: "#/components/schemas/NutritionInput"
+        - type: object
+          required: [stale, updatedAt]
+          properties:
+            stale:
+              type: boolean
+              description: >
+                True when the recipe's ingredients or servings have changed since these
+                numbers were recorded, so they no longer describe the current recipe. Computed
+                on read by comparing a hash of the inputs — never a stored flag, which would
+                have to be maintained by every write path and would eventually be wrong.
+            updatedAt: { type: ["string", "null"], format: date-time }
+
     Ingredient:
       type: object
       required: [name, category]
@@ -618,6 +662,10 @@ components:
         photoUrl: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+        nutrition:
+          oneOf:
+            - $ref: "#/components/schemas/Nutrition"
+            - type: "null"
 
     RecipeInput:
       type: object
@@ -637,6 +685,8 @@ components:
           type: array
           items: { type: string }
         photoUrl: { type: string }
+        nutrition:
+          $ref: "#/components/schemas/NutritionInput"
 
     IngestSourceType:
       type: string
@@ -741,6 +791,14 @@ components:
         tags:
           type: array
           items: { type: string }
+        nutrition:
+          oneOf:
+            - $ref: "#/components/schemas/NutritionInput"
+            - type: "null"
+          description: >
+            Per-serving nutrition as printed by the source, or null when the source did not
+            state it. Never inferred at this stage — an estimate would be indistinguishable
+            from a printed panel once stored.
 
     IngestRecipesResult:
       type: object
@@ -852,6 +910,11 @@ components:
           type: array
           items: { type: string }
         photoUrl: { type: ["string", "null"] }
+        nutrition:
+          oneOf:
+            - $ref: "#/components/schemas/NutritionInput"
+            - type: "null"
+          description: Setting this marks the values as a manual correction unless `source` says otherwise.
 
     RecipeSummary:
       type: object

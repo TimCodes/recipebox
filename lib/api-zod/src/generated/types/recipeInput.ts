@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Ingredient } from './ingredient';
+import type { NutritionInput } from './nutritionInput';
 
 export interface RecipeInput {
   /** @minLength 1 */
@@ -22,4 +23,5 @@ export interface RecipeInput {
   cookMinutes?: number;
   tags?: string[];
   photoUrl?: string;
+  nutrition?: NutritionInput;
 }

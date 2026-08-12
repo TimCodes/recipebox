@@ -1,5 +1,5 @@
 import { getOpenAI, modelFor } from "@workspace/openai";
-import type { IngestedRecipe } from "@workspace/api-zod";
+import type { IngestedRecipe, NutritionInput } from "@workspace/api-zod";
 
 export const INGREDIENT_CATEGORIES = [
   "produce",
@@ -60,8 +60,41 @@ export const RECIPE_OBJECT_SCHEMA = {
       type: "string",
       description: "Numbered or step-by-step instructions, newline separated.",
     },
+    nutrition: {
+      anyOf: [
+        {
+          type: "object",
+          properties: {
+            calories: { type: ["integer", "null"], description: "kcal per serving" },
+            proteinG: { type: ["number", "null"] },
+            carbsG: { type: ["number", "null"] },
+            fatG: { type: ["number", "null"] },
+            fiberG: { type: ["number", "null"] },
+            sugarG: { type: ["number", "null"] },
+            saturatedFatG: { type: ["number", "null"] },
+            cholesterolMg: { type: ["number", "null"] },
+            sodiumMg: { type: ["number", "null"] },
+          },
+          required: [
+            "calories",
+            "proteinG",
+            "carbsG",
+            "fatG",
+            "fiberG",
+            "sugarG",
+            "saturatedFatG",
+            "cholesterolMg",
+            "sodiumMg",
+          ],
+          additionalProperties: false,
+        },
+        { type: "null" },
+      ],
+      description:
+        "Per-serving nutrition ONLY if the source text explicitly states it (e.g. a 'PER SERVING: Calories: 189; Protein: 7g' panel). Null if the source does not state it. Never estimate or calculate these — an estimate is indistinguishable from a printed panel once stored.",
+    },
   },
-  required: ["title", "description", "servings", "prepMinutes", "cookMinutes", "tags", "ingredients", "instructions"],
+  required: ["title", "description", "servings", "prepMinutes", "cookMinutes", "tags", "ingredients", "instructions", "nutrition"],
   additionalProperties: false,
 } as const;
 
@@ -77,6 +110,51 @@ const RECIPE_EXTRACTION_SCHEMA = {
   required: ["recipes"],
   additionalProperties: false,
 } as const;
+
+/** Shape the extraction model returns for `nutrition` — macros plus whatever else the panel listed. */
+interface RawNutrition {
+  calories: number | null;
+  proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
+  fiberG: number | null;
+  sugarG: number | null;
+  saturatedFatG: number | null;
+  cholesterolMg: number | null;
+  sodiumMg: number | null;
+}
+
+/**
+ * Folds the model's flat nutrition object into the API shape: four macros as first-class
+ * fields, everything else preserved under `extras` rather than discarded.
+ *
+ * Always tagged `stated`, because the schema and prompt only permit this field to be filled
+ * from an explicit panel in the source. Returns undefined when every macro is null, so a
+ * recipe with no panel stores no nutrition at all instead of a row of nulls that reads as
+ * "we looked and it has zero calories".
+ */
+function toNutritionInput(raw: RawNutrition | null | undefined): NutritionInput | undefined {
+  if (!raw) return undefined;
+  if (raw.calories == null && raw.proteinG == null && raw.carbsG == null && raw.fatG == null) {
+    return undefined;
+  }
+
+  const extras: Record<string, number> = {};
+  if (raw.fiberG != null) extras["fiberG"] = raw.fiberG;
+  if (raw.sugarG != null) extras["sugarG"] = raw.sugarG;
+  if (raw.saturatedFatG != null) extras["saturatedFatG"] = raw.saturatedFatG;
+  if (raw.cholesterolMg != null) extras["cholesterolMg"] = raw.cholesterolMg;
+  if (raw.sodiumMg != null) extras["sodiumMg"] = raw.sodiumMg;
+
+  return {
+    calories: raw.calories,
+    proteinG: raw.proteinG,
+    carbsG: raw.carbsG,
+    fatG: raw.fatG,
+    source: "stated",
+    ...(Object.keys(extras).length > 0 ? { extras } : {}),
+  };
+}
 
 interface ExtractionResult {
   recipes: IngestedRecipe[];
@@ -114,7 +192,7 @@ async function extractRecipesFromChunk(chunk: string): Promise<IngestedRecipe[]>
           "of a larger cookbook) or a pasted blog/email. Identify every distinct recipe present in THIS text. For each " +
           "recipe, extract its title, an optional short description, ingredients (name, quantity as a number when " +
           "stated, unit, and best-guess category), full instructions, servings, prep time in minutes, cook time in " +
-          "minutes, and any relevant tags (cuisine, meal type, diet). Use null for any field that cannot be determined " +
+          "minutes, and any relevant tags (cuisine, meal type, diet). If the text prints a per-serving nutrition panel, copy those numbers into `nutrition` exactly as stated; if it does not, set `nutrition` to null — never compute or estimate it. Use null for any field that cannot be determined " +
           "from the text. If this text contains no recognizable recipe (e.g. it's front matter, an index, an unrelated " +
           "section, blank, or gibberish), return an empty recipes array — do not invent content.",
       },
@@ -142,7 +220,12 @@ async function extractRecipesFromChunk(chunk: string): Promise<IngestedRecipe[]>
     throw new RecipeIngestionError("The extraction service returned a malformed response.");
   }
 
-  return (parsed.recipes ?? []).filter((r) => r.title?.trim() && r.instructions?.trim());
+  return (parsed.recipes ?? [])
+    .filter((r) => r.title?.trim() && r.instructions?.trim())
+    .map((r) => ({
+      ...r,
+      nutrition: toNutritionInput((r as { nutrition?: RawNutrition | null }).nutrition) ?? null,
+    }));
 }
 
 /** Runs a set of async tasks with a concurrency cap, preserving input order in the results. */

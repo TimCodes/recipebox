@@ -22,11 +22,18 @@ import {
 } from "@workspace/api-zod";
 import { OpenAINotConfiguredError } from "@workspace/openai";
 import { extractRecipesFromText, RecipeIngestionError } from "../lib/recipe-ingestion";
+import { toNutrition, toNutritionColumns, isEmptyNutrition } from "../lib/nutrition";
 import { extractPdfPages, outlinePdf, textForPages, PdfOutlineError } from "../lib/pdf-outline";
 import { generateRecipeFromPrompt, RecipeGenerationError } from "../lib/recipe-generation";
 import { retrieveRelevantRecipes } from "../lib/recipe-retrieval";
 
 const router: IRouter = Router();
+
+/** Adds the API-shaped `nutrition` object to a recipe row. */
+function withNutrition(recipe: RecipeRow) {
+  return { ...recipe, nutrition: toNutrition(recipe) };
+}
+
 
 function matchesSearch(recipe: RecipeRow, search: string): boolean {
   const needle = search.toLowerCase();
@@ -52,7 +59,7 @@ router.get("/recipes", async (req, res): Promise<void> => {
     recipes = recipes.filter((recipe) => recipe.tags.includes(query.data.tag!));
   }
 
-  res.json(ListRecipesResponse.parse(recipes));
+  res.json(ListRecipesResponse.parse(recipes.map(withNutrition)));
 });
 
 router.post("/recipes", async (req, res): Promise<void> => {
@@ -75,10 +82,15 @@ router.post("/recipes", async (req, res): Promise<void> => {
       cookMinutes: parsed.data.cookMinutes ?? null,
       tags: parsed.data.tags ?? [],
       photoUrl: parsed.data.photoUrl ?? null,
+      ...toNutritionColumns(
+        isEmptyNutrition(parsed.data.nutrition) ? null : parsed.data.nutrition,
+        parsed.data.ingredients,
+        parsed.data.servings ?? null,
+      ),
     })
     .returning();
 
-  res.status(201).json(CreateRecipeResponse.parse(recipe));
+  res.status(201).json(CreateRecipeResponse.parse(withNutrition(recipe)));
 });
 
 router.post("/recipes/ingest", async (req, res): Promise<void> => {
@@ -240,7 +252,7 @@ router.get("/recipes/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(GetRecipeResponse.parse(recipe));
+  res.json(GetRecipeResponse.parse(withNutrition(recipe)));
 });
 
 router.patch("/recipes/:id", async (req, res): Promise<void> => {
@@ -256,9 +268,31 @@ router.patch("/recipes/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  // `nutrition` is an API-shaped object, not a column, so it cannot go straight into .set().
+  const { nutrition, ...fields } = parsed.data;
+
+  const [existing] = await db.select().from(recipesTable).where(eq(recipesTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Recipe not found" });
+    return;
+  }
+
+  const updates: Record<string, unknown> = { ...fields };
+
+  if (nutrition !== undefined) {
+    // Hash against what the recipe will look like *after* this update, not before, or the
+    // values would be marked stale the moment they are written.
+    const ingredients = fields.ingredients ?? existing.ingredients;
+    const servings = fields.servings !== undefined ? fields.servings : existing.servings;
+    Object.assign(
+      updates,
+      toNutritionColumns(isEmptyNutrition(nutrition) ? null : nutrition, ingredients, servings),
+    );
+  }
+
   const [recipe] = await db
     .update(recipesTable)
-    .set(parsed.data)
+    .set(updates)
     .where(eq(recipesTable.id, params.data.id))
     .returning();
 
@@ -267,7 +301,7 @@ router.patch("/recipes/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(UpdateRecipeResponse.parse(recipe));
+  res.json(UpdateRecipeResponse.parse(withNutrition(recipe)));
 });
 
 router.delete("/recipes/:id", async (req, res): Promise<void> => {

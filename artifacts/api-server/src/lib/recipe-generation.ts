@@ -50,7 +50,8 @@ export async function generateRecipeFromPrompt(prompt: string, candidates: Recip
           "flavors, techniques, and ingredients consistent with the candidates when they're relevant to the request, but " +
           "invent something new if nothing in the collection fits. Fill in ingredients (name, quantity as a number when " +
           "sensible, unit, best-guess category), full step-by-step instructions, servings, prep/cook time in minutes, " +
-          "and relevant tags. Use null for anything that can't reasonably be determined. Report which candidate ids (if " +
+          "and relevant tags. Set `nutrition` to null — nothing states it for an invented recipe, and it is derived " +
+          "separately. Use null for anything that can't reasonably be determined. Report which candidate ids (if " +
           "any) most directly influenced the result in inspiredByIds; use [] if none did.",
       },
       { role: "user", content: `${candidateBlock}\n\nUser's request: ${prompt}` },

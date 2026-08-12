@@ -38,6 +38,55 @@ export const MealSlot = {
   snack: 'snack',
 } as const;
 
+/**
+ * Where the numbers came from. `stated` means the source document printed them (a cookbook's "PER SERVING" panel) — the most trustworthy case, since it reflects the recipe as actually tested. `estimated` and `computed` are derived by us. `manual` is a user correction and must never be overwritten automatically. This is surfaced in the UI, so a tested panel is never presented as though it were our guess.
+ */
+export type NutritionSource = typeof NutritionSource[keyof typeof NutritionSource];
+
+
+export const NutritionSource = {
+  stated: 'stated',
+  estimated: 'estimated',
+  computed: 'computed',
+  manual: 'manual',
+} as const;
+
+/**
+ * Anything beyond the four macros that the source happened to provide — fiber, sugars, saturated fat, cholesterol, sodium. Kept because it costs nothing to retain and is otherwise discarded permanently.
+ * @nullable
+ */
+export type NutritionInputExtras = { [key: string]: unknown } | null;
+
+/**
+ * Per-serving macros. All values may be null when unknown; never guess to fill them in.
+ */
+export interface NutritionInput {
+  /**
+     * kcal per serving
+     * @nullable
+     */
+  calories: number | null;
+  /** @nullable */
+  proteinG: number | null;
+  /** @nullable */
+  carbsG: number | null;
+  /** @nullable */
+  fatG: number | null;
+  source: NutritionSource;
+  /**
+     * Anything beyond the four macros that the source happened to provide — fiber, sugars, saturated fat, cholesterol, sodium. Kept because it costs nothing to retain and is otherwise discarded permanently.
+     * @nullable
+     */
+  extras?: NutritionInputExtras;
+}
+
+export type Nutrition = NutritionInput & ({
+  /** True when the recipe's ingredients or servings have changed since these numbers were recorded, so they no longer describe the current recipe. Computed on read by comparing a hash of the inputs — never a stored flag, which would have to be maintained by every write path and would eventually be wrong. */
+  stale: boolean;
+  /** @nullable */
+  updatedAt: string | null;
+});
+
 export interface Ingredient {
   /** @minLength 1 */
   name: string;
@@ -66,6 +115,7 @@ export interface Recipe {
   photoUrl: string | null;
   createdAt: string;
   updatedAt: string;
+  nutrition?: Nutrition | null;
 }
 
 export interface RecipeInput {
@@ -83,6 +133,7 @@ export interface RecipeInput {
   cookMinutes?: number;
   tags?: string[];
   photoUrl?: string;
+  nutrition?: NutritionInput;
 }
 
 export type IngestSourceType = typeof IngestSourceType[keyof typeof IngestSourceType];
@@ -151,6 +202,8 @@ export interface IngestedRecipe {
   /** @nullable */
   cookMinutes: number | null;
   tags: string[];
+  /** Per-serving nutrition as printed by the source, or null when the source did not state it. Never inferred at this stage — an estimate would be indistinguishable from a printed panel once stored. */
+  nutrition?: NutritionInput | null;
 }
 
 export interface IngestRecipesResult {
@@ -255,6 +308,8 @@ export interface RecipeUpdate {
   tags?: string[];
   /** @nullable */
   photoUrl?: string | null;
+  /** Setting this marks the values as a manual correction unless `source` says otherwise. */
+  nutrition?: NutritionInput | null;
 }
 
 export interface MealPlanEntry {

@@ -252,6 +252,51 @@ export default function RecipeDetail() {
           </div>
         </div>
 
+        {recipe.nutrition && (
+          <div className="mt-8 bg-card border border-border rounded-2xl p-6 shadow-sm">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+              <h2 className="text-xl font-serif text-foreground">Nutrition <span className="text-muted-foreground text-base">per serving</span></h2>
+              <div className="flex items-center gap-2">
+                {/* The provenance label is the point: a publisher's tested panel and our own
+                    estimate must never look alike. */}
+                <Badge variant={recipe.nutrition.source === 'stated' ? 'secondary' : 'outline'}>
+                  {recipe.nutrition.source === 'stated'
+                    ? 'From the recipe'
+                    : recipe.nutrition.source === 'manual'
+                      ? 'Edited by you'
+                      : 'Estimated'}
+                </Badge>
+                {recipe.nutrition.stale && (
+                  <Badge variant="destructive">Out of date</Badge>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {([
+                ['Calories', recipe.nutrition.calories, ''],
+                ['Protein', recipe.nutrition.proteinG, 'g'],
+                ['Carbs', recipe.nutrition.carbsG, 'g'],
+                ['Fat', recipe.nutrition.fatG, 'g'],
+              ] as const).map(([label, value, unit]) => (
+                <div key={label} className="rounded-xl bg-muted/40 p-4">
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">{label}</div>
+                  <div className="text-2xl font-serif text-foreground mt-1">
+                    {value == null ? '--' : `${value}${unit}`}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {recipe.nutrition.stale && (
+              <p className="text-xs text-muted-foreground mt-4">
+                The ingredients or servings changed after these numbers were recorded, so they no
+                longer describe this recipe.
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-12 mt-12">
           
           {/* Ingredients Side */}
