@@ -3,7 +3,9 @@ import { useLocation, Link } from 'wouter';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useIngestRecipes, useCreateRecipe } from '@workspace/api-client-react';
+import { useIngestRecipes, useCreateRecipe, useOutlineRecipePdf } from '@workspace/api-client-react';
+import type { PdfRecipeCandidate } from '@workspace/api-client-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Form } from '@/components/ui/form';
@@ -11,7 +13,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, UploadCloud, FileText, Sparkles, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, Loader2, UploadCloud, FileText, Sparkles, AlertCircle, X, ListChecks, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { draftSchema, DraftCard } from '@/components/recipe-draft-form';
 
 const reviewSchema = z.object({
@@ -54,7 +57,15 @@ export default function RecipeImport() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [hasResults, setHasResults] = useState(false);
 
+  // Locally detected recipes in the uploaded PDF. Produced with no AI call at all, so the
+  // user can browse a whole cookbook for free and only pay for what they pick.
+  const [candidates, setCandidates] = useState<PdfRecipeCandidate[] | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [filter, setFilter] = useState('');
+  const [pdfBase64, setPdfBase64] = useState<string | null>(null);
+
   const ingestRecipes = useIngestRecipes();
+  const outlinePdf = useOutlineRecipePdf();
   const createRecipe = useCreateRecipe();
 
   const form = useForm<ReviewValues>({
@@ -67,9 +78,45 @@ export default function RecipeImport() {
     name: "drafts",
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    setSelectedFile(file ?? null);
+  const resetPdfState = () => {
+    setCandidates(null);
+    setSelected(new Set());
+    setFilter('');
+    setPdfBase64(null);
+    setIngestError(null);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setSelectedFile(file);
+    resetPdfState();
+    if (!file) return;
+
+    // Scan immediately. This is text extraction plus local heuristics — no tokens, no cost —
+    // so there is nothing to lose by doing it the moment a file is chosen.
+    try {
+      const fileBase64 = await readFileAsBase64(file);
+      setPdfBase64(fileBase64);
+      const result = await outlinePdf.mutateAsync({ data: { fileBase64, fileName: file.name } });
+      setCandidates(result.candidates);
+      setSelected(new Set(result.candidates.map((_, i) => i)));
+    } catch (err) {
+      // A failed scan is not fatal: fall back to extracting the whole document.
+      setCandidates([]);
+      setIngestError(extractErrorMessage(err));
+    }
+  };
+
+  /** Page numbers covered by the ticked recipes, as whole ranges so multi-page recipes are not cut. */
+  const selectedPages = (): number[] => {
+    if (!candidates) return [];
+    const pages = new Set<number>();
+    for (const i of selected) {
+      const c = candidates[i];
+      if (!c) continue;
+      for (let p = c.startPage; p <= c.endPage; p++) pages.add(p);
+    }
+    return [...pages].sort((a, b) => a - b);
   };
 
   const handleExtract = async () => {
@@ -79,9 +126,16 @@ export default function RecipeImport() {
     try {
       let result;
       if (selectedFile) {
-        const fileBase64 = await readFileAsBase64(selectedFile);
+        const fileBase64 = pdfBase64 ?? (await readFileAsBase64(selectedFile));
+        const pages = selectedPages();
         result = await ingestRecipes.mutateAsync({
-          data: { source: 'pdf', fileBase64, fileName: selectedFile.name },
+          data: {
+            source: 'pdf',
+            fileBase64,
+            fileName: selectedFile.name,
+            // Omitted when nothing was detected, which makes the server scan the whole file.
+            ...(pages.length > 0 ? { pages } : {}),
+          },
         });
       } else if (pastedText.trim()) {
         result = await ingestRecipes.mutateAsync({
@@ -229,10 +283,89 @@ export default function RecipeImport() {
                     <>
                       <UploadCloud className="h-10 w-10 text-muted-foreground" />
                       <p className="font-medium text-foreground">Click to choose a PDF</p>
-                      <p className="text-sm text-muted-foreground">One or more recipes in a single PDF are supported.</p>
+                      <p className="text-sm text-muted-foreground">Cookbooks are fine — you'll get to pick which recipes to import.</p>
                     </>
                   )}
                 </div>
+
+                {outlinePdf.isPending && (
+                  <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Scanning the PDF for recipes...
+                  </div>
+                )}
+
+                {candidates && candidates.length > 0 && (
+                  <div className="mt-5 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                        <ListChecks className="h-4 w-4 text-primary" />
+                        Found {candidates.length} recipe{candidates.length === 1 ? '' : 's'} — pick the ones to import
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button type="button" variant="ghost" size="sm"
+                          onClick={() => setSelected(new Set(candidates.map((_, i) => i)))}>Select all</Button>
+                        <Button type="button" variant="ghost" size="sm"
+                          onClick={() => setSelected(new Set())}>Clear</Button>
+                      </div>
+                    </div>
+
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Filter recipes..."
+                        className="pl-9"
+                        value={filter}
+                        onChange={(e) => setFilter(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="max-h-[22rem] overflow-y-auto rounded-lg border border-border divide-y divide-border">
+                      {candidates.map((c, i) => {
+                        if (filter && !c.title.toLowerCase().includes(filter.toLowerCase())) return null;
+                        const checked = selected.has(i);
+                        return (
+                          <label key={`${c.startPage}-${i}`}
+                            className="flex items-start gap-3 p-3 cursor-pointer hover:bg-muted/40 transition-colors">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={() => {
+                                const next = new Set(selected);
+                                if (checked) next.delete(i); else next.add(i);
+                                setSelected(next);
+                              }}
+                              className="mt-0.5"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-baseline gap-2">
+                                <span className="font-medium text-foreground truncate">{c.title}</span>
+                                {/* Always show the range: title detection is heuristic, so the page
+                                    numbers let the user sanity-check a bad guess. */}
+                                <span className="text-xs text-muted-foreground shrink-0">
+                                  {c.startPage === c.endPage ? `p${c.startPage}` : `p${c.startPage}–${c.endPage}`}
+                                </span>
+                              </div>
+                              {c.snippet && (
+                                <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{c.snippet}</p>
+                              )}
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">
+                      {selected.size === 0
+                        ? 'Nothing selected — the whole document will be scanned.'
+                        : `${selected.size} selected, covering ${selectedPages().length} of ${candidates.length > 0 ? 'the' : ''} PDF pages. Only these are sent to the AI.`}
+                    </p>
+                  </div>
+                )}
+
+                {candidates && candidates.length === 0 && !outlinePdf.isPending && (
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    Couldn't pick out individual recipes in this PDF, so the whole document will be scanned.
+                  </p>
+                )}
               </TabsContent>
             </Tabs>
 
@@ -251,7 +384,10 @@ export default function RecipeImport() {
                 </>
               ) : (
                 <>
-                  <Sparkles className="h-4 w-4" /> Extract Recipe
+                  <Sparkles className="h-4 w-4" />
+                  {candidates && candidates.length > 0 && selected.size > 0
+                    ? `Extract ${selected.size} Recipe${selected.size === 1 ? '' : 's'}`
+                    : 'Extract Recipe'}
                 </>
               )}
             </Button>

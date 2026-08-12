@@ -112,6 +112,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /recipes/pdf-outline:
+    post:
+      operationId: outlineRecipePdf
+      tags: [recipes]
+      summary: List the recipes found in a PDF, without calling any AI
+      description: >
+        Extracts the PDF's text locally and locates recipe boundaries and titles with
+        heuristics only — no model call, no tokens, no cost. The client shows the result so
+        the user can pick which recipes to extract, and then passes those page numbers to
+        /recipes/ingest. For the common case of taking a few recipes out of a large cookbook
+        this avoids sending (and paying for) the entire book.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PdfOutlineInput"
+      responses:
+        "200":
+          description: Recipes located in the document. `candidates` may be empty.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PdfOutlineResult"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: The PDF had no extractable text (e.g. a scan with no text layer)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /recipes/generate:
     post:
       operationId: generateRecipe
@@ -620,6 +657,63 @@ components:
         fileName:
           type: string
           description: Optional original file name, used only for error messages.
+        pages:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+          description: >
+            Optional, source=pdf only. Restricts extraction to these 1-based page numbers,
+            normally the page ranges of recipes the user picked from /recipes/pdf-outline.
+            Omit to scan the whole document. Selecting only the pages you want is dramatically
+            cheaper and faster: it cuts both the text sent to the model and the number of
+            recipes it has to write back.
+
+    PdfRecipeCandidate:
+      type: object
+      description: >
+        One recipe located in a PDF by local heuristics. No AI is involved in producing this —
+        it exists so the user can choose what to extract before any model call is made.
+      required: [startPage, endPage, title, snippet]
+      properties:
+        startPage:
+          type: integer
+          description: 1-based page the recipe starts on.
+        endPage:
+          type: integer
+          description: >
+            1-based last page of the recipe, derived from where the next recipe begins.
+            Over half the recipes in a typical cookbook span more than one page, so selecting
+            a single page would truncate them.
+        title:
+          type: string
+          description: Best-effort title. Heuristic and layout-dependent — always show the page range alongside it.
+        snippet:
+          type: string
+          description: First lines of the recipe, so the user can confirm the match.
+
+    PdfOutlineInput:
+      type: object
+      required: [fileBase64]
+      properties:
+        fileBase64:
+          type: string
+          description: Base64-encoded PDF file contents (no data-URL prefix).
+        fileName:
+          type: string
+          description: Optional original file name, used only for error messages.
+
+    PdfOutlineResult:
+      type: object
+      required: [pageCount, candidates]
+      properties:
+        pageCount:
+          type: integer
+        candidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/PdfRecipeCandidate"
+          description: Empty when nothing could be detected — the client should fall back to ingesting the whole document.
 
     IngestedRecipe:
       type: object

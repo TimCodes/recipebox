@@ -101,6 +101,38 @@ export interface IngestRecipesInput {
   fileBase64?: string;
   /** Optional original file name, used only for error messages. */
   fileName?: string;
+  /**
+     * Optional, source=pdf only. Restricts extraction to these 1-based page numbers, normally the page ranges of recipes the user picked from /recipes/pdf-outline. Omit to scan the whole document. Selecting only the pages you want is dramatically cheaper and faster: it cuts both the text sent to the model and the number of recipes it has to write back.
+     * @items.minimum 1
+     */
+  pages?: number[];
+}
+
+/**
+ * One recipe located in a PDF by local heuristics. No AI is involved in producing this — it exists so the user can choose what to extract before any model call is made.
+ */
+export interface PdfRecipeCandidate {
+  /** 1-based page the recipe starts on. */
+  startPage: number;
+  /** 1-based last page of the recipe, derived from where the next recipe begins. Over half the recipes in a typical cookbook span more than one page, so selecting a single page would truncate them. */
+  endPage: number;
+  /** Best-effort title. Heuristic and layout-dependent — always show the page range alongside it. */
+  title: string;
+  /** First lines of the recipe, so the user can confirm the match. */
+  snippet: string;
+}
+
+export interface PdfOutlineInput {
+  /** Base64-encoded PDF file contents (no data-URL prefix). */
+  fileBase64: string;
+  /** Optional original file name, used only for error messages. */
+  fileName?: string;
+}
+
+export interface PdfOutlineResult {
+  pageCount: number;
+  /** Empty when nothing could be detected — the client should fall back to ingesting the whole document. */
+  candidates: PdfRecipeCandidate[];
 }
 
 /**

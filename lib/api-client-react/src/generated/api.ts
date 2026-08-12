@@ -41,6 +41,8 @@ import type {
   MealPlanEntry,
   MealPlanEntryInput,
   MealPlanEntryUpdate,
+  PdfOutlineInput,
+  PdfOutlineResult,
   Recipe,
   RecipeInput,
   RecipeUpdate
@@ -376,6 +378,78 @@ export const useIngestRecipes = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getIngestRecipesMutationOptions(options));
+    }
+
+export const getOutlineRecipePdfUrl = () => {
+
+
+
+
+  return `/api/recipes/pdf-outline`
+}
+
+/**
+ * Extracts the PDF's text locally and locates recipe boundaries and titles with heuristics only — no model call, no tokens, no cost. The client shows the result so the user can pick which recipes to extract, and then passes those page numbers to /recipes/ingest. For the common case of taking a few recipes out of a large cookbook this avoids sending (and paying for) the entire book.
+ * @summary List the recipes found in a PDF, without calling any AI
+ */
+export const outlineRecipePdf = async (pdfOutlineInput: PdfOutlineInput, options?: Parameters<typeof customFetch>[1]): Promise<PdfOutlineResult> => {
+
+  return customFetch<PdfOutlineResult>(getOutlineRecipePdfUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(pdfOutlineInput)
+  }
+);}
+
+
+
+
+
+export const getOutlineRecipePdfMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof outlineRecipePdf>>, TError,{data: BodyType<PdfOutlineInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof outlineRecipePdf>>, TError,{data: BodyType<PdfOutlineInput>}, TContext> => {
+
+const mutationKey = ['outlineRecipePdf'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof outlineRecipePdf>>, {data: BodyType<PdfOutlineInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  outlineRecipePdf(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OutlineRecipePdfMutationResult = NonNullable<Awaited<ReturnType<typeof outlineRecipePdf>>>
+    export type OutlineRecipePdfMutationBody = BodyType<PdfOutlineInput>
+    export type OutlineRecipePdfMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary List the recipes found in a PDF, without calling any AI
+ */
+export const useOutlineRecipePdf = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof outlineRecipePdf>>, TError,{data: BodyType<PdfOutlineInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof outlineRecipePdf>>,
+        TError,
+        {data: BodyType<PdfOutlineInput>},
+        TContext
+      > => {
+      return useMutation(getOutlineRecipePdfMutationOptions(options));
     }
 
 export const getGenerateRecipeUrl = () => {

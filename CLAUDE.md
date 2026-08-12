@@ -168,7 +168,7 @@ Anything user-scoped is a schema-wide change.
 ## API surface (`artifacts/api-server/src/routes/`)
 
 `recipes` (list/search, create, get, patch, delete, `GET /recipes/tags`, `POST /recipes/ingest`,
-`POST /recipes/generate`), `meal-plan` (list by date range, create, patch, delete,
+`POST /recipes/pdf-outline`, `POST /recipes/generate`), `meal-plan` (list by date range, create, patch, delete,
 `POST /meal-plan/generate`), `grocery-list` (list, create manual, clear week,
 `POST /grocery-list/generate`, patch, delete), `dashboard`, `healthz`.
 
@@ -213,6 +213,15 @@ unparseable text — so a bad model choice surfaces immediately, not as corrupt 
 The client is **lazy** (`getOpenAI()`): a missing `OPENAI_API_KEY` fails only the AI routes,
 with a 503, instead of preventing the server from booting at all.
 
+- **`pdf-outline.ts`** — **zero-token** PDF recipe detection. Extracts per-page text and
+  locates recipe boundaries and titles with heuristics only, so the user can pick a few
+  recipes out of a cookbook before any model call. Measured on the 206-page cookbook in
+  `attached_assets/`: 101 recipes detected (the book claims 101), 8/8 title recall on a spot
+  check, 53% of recipes span more than one page. Titles anchor on the line above the
+  serves/prep metadata line. **Always normalise text through `clean()` before matching** —
+  PDF extraction leaves invisible zero-width and non-breaking characters that silently break
+  anchored regexes. `endPage` runs to the page before the next recipe starts, because
+  selecting a single page would truncate the majority of recipes.
 - **`recipe-ingestion.ts`** — PDF text via `pdf-parse` v2, then chunked extraction
   (18k chars, ≤12 chunks, 4 concurrent, ≤60 recipes returned) merged across chunks, with
   user-facing `warnings[]` when a cap is hit.
