@@ -54,7 +54,8 @@ is the only automated check. Verify behavior by running the app.
 | `OPENAI_API_KEY` | `lib/openai` | **optional** — without it the app runs normally and only the three AI endpoints return 503 |
 | `OPENAI_BASE_URL` | `lib/openai` | optional; any OpenAI-compatible endpoint. Blank = api.openai.com |
 | `OPENAI_MODEL_INGEST` / `OPENAI_MODEL_RECIPE` / `OPENAI_MODEL_MEAL_PLAN` / `OPENAI_MODEL` | `lib/openai` | per-task model override; `OPENAI_MODEL` overrides all three |
-| `PORT` | api-server, vite | defaults `3000` / `5173` |
+| `PORT` | api-server | defaults `3000`. **This machine uses 3002** — 3000 is published by the `perceptacle-local-control-plane` kind cluster and 3001 is also taken |
+| `WEB_PORT` | meal-planner vite config | defaults `5173` (was `PORT`, renamed so `.env` can be shared) |
 | `BASE_PATH` | meal-planner vite config | defaults `/`; becomes vite `base` |
 | `API_PROXY_TARGET` | meal-planner vite config | defaults `http://localhost:3000`; dev `/api` proxy target |
 | `MIGRATIONS_DIR` | api-server | defaults to `lib/db/drizzle` relative to the bundled server; set explicitly in the image |
@@ -62,9 +63,11 @@ is the only automated check. Verify behavior by running the app.
 | `APP_PORT` | compose | host port for the app container (default 3000) |
 | `LOG_LEVEL`, `NODE_ENV` | api-server | pino level; `pino-pretty` transport off in production |
 
-Local values live in `.env` (gitignored, copied from `.env.example`), loaded via Node's
-`--env-file-if-exists` — there is no dotenv dependency. Vite does **not** read `.env` for
-these; `PORT`/`BASE_PATH`/`API_PROXY_TARGET` come from the shell or the defaults above.
+Local values live in `.env` (gitignored, copied from `.env.example`). The API server loads it
+via Node's `--env-file-if-exists`; the Vite config loads the same file explicitly with
+`loadEnv`, so both read their settings from one place. Before that, Vite defaulted its proxy
+to port 3000 while the API server was told to listen elsewhere, and the browser just reported
+"Failed to fetch" with nothing useful in any log.
 
 ## Workspace map
 
