@@ -3,8 +3,9 @@
 Give every recipe per-serving macros: **calories, protein, carbohydrates, fat**. Take them
 from the source when the source states them; derive them when it doesn't.
 
-Status: **Phase 1 complete.** Stated nutrition is captured, stored, and displayed.
-Phases 2–4 (estimation, USDA grounding, backfill) remain.
+Status: **Phases 1 and 4 (backfill) complete.** 31 of 34 existing recipes now carry the
+publisher's own per-serving values, recovered with **no AI calls**. Remaining: phase 2
+(estimate the 3 recipes not in the book), phase 3 (USDA grounding), and meal-plan daily totals.
 
 ---
 
@@ -217,6 +218,36 @@ rather than a vibe.
 narrowed. If it didn't, this phase isn't worth keeping — that is a real possible outcome and
 worth honouring.
 
+### Phase 4 — Backfill and surface ✅ BACKFILL DONE
+
+Outcome: **31 of 34 recipes backfilled with the publisher's stated values, zero AI calls and
+zero cost.**
+
+The panel turned out to be regular enough to parse deterministically
+(`parseNutritionPanel` in `lib/nutrition.ts`), so re-running the whole cookbook through the
+model was unnecessary — the numbers are printed verbatim in the text. Parsing is also exactly
+reproducible, which an extraction call is not.
+
+`artifacts/api-server/src/scripts/backfill-nutrition.ts`, run via
+`pnpm --filter @workspace/api-server run backfill-nutrition <pdf> [--apply]`. Dry run by
+default; only touches recipes with no nutrition, so it is safe to re-run and never overwrites
+a manual correction.
+
+Two parser bugs found by actually running it, both of which produced *plausible* wrong numbers
+rather than obvious failures:
+
+1. `Calories: 1,235` parsed as **1** — a digits-only capture stopped at the thousands
+   separator. A recipe showing "1 kcal" is visibly wrong; had the value been "1,0xx" it might
+   never have been noticed.
+2. Label patterns containing top-level alternation (`total\s+fat|...`) bound the value capture
+   to the last alternative only, so **fat and carbs silently parsed as null** whenever the
+   first alternative matched. Wrapping the label in a non-capturing group fixed it.
+
+Still to do here: meal-plan daily totals, which need `nutrition` on `RecipeSummary`.
+
+<details>
+<summary>Original phase 4 plan</summary>
+
 ### Phase 4 — Backfill and surface
 
 - **Backfill the 34 existing recipes from the cookbook**: re-run the outline, match candidates
@@ -226,6 +257,8 @@ worth honouring.
 - Anything unmatched falls back to Phase 2 estimation.
 - Surface: recipe detail (full), recipe cards (calories only), and **meal-plan daily totals**,
   which is where per-serving data actually becomes useful day to day.
+
+</details>
 
 ---
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useListRecipes, useListRecipeTags } from '@workspace/api-client-react';
 import { Link } from 'wouter';
-import { Search, Plus, ChefHat, Clock, Users, SlidersHorizontal, X, Sparkles, Wand2 } from 'lucide-react';
+import { Search, Plus, ChefHat, Clock, Users, SlidersHorizontal, X, Sparkles, Wand2, Flame } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -193,6 +193,12 @@ export default function RecipesList() {
                       <div className="flex items-center gap-1.5">
                         <Users className="h-4 w-4" />
                         <span>{recipe.servings}</span>
+                      </div>
+                    )}
+                    {recipe.nutrition?.calories != null && (
+                      <div className="flex items-center gap-1.5">
+                        <Flame className="h-4 w-4" />
+                        <span>{recipe.nutrition.calories} cal</span>
                       </div>
                     )}
                   </div>
