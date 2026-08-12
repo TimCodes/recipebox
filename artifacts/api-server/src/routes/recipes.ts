@@ -9,6 +9,8 @@ import {
   UpdateRecipeBody,
   DeleteRecipeParams,
   IngestRecipesBody,
+  OutlineRecipePdfBody,
+  OutlineRecipePdfResponse,
   GenerateRecipeBody,
   ListRecipesResponse,
   CreateRecipeResponse,
@@ -19,7 +21,8 @@ import {
   GenerateRecipeResponse,
 } from "@workspace/api-zod";
 import { OpenAINotConfiguredError } from "@workspace/openai";
-import { extractTextFromPdf, extractRecipesFromText, RecipeIngestionError } from "../lib/recipe-ingestion";
+import { extractRecipesFromText, RecipeIngestionError } from "../lib/recipe-ingestion";
+import { extractPdfPages, outlinePdf, textForPages, PdfOutlineError } from "../lib/pdf-outline";
 import { generateRecipeFromPrompt, RecipeGenerationError } from "../lib/recipe-generation";
 import { retrieveRelevantRecipes } from "../lib/recipe-retrieval";
 
@@ -110,7 +113,24 @@ router.post("/recipes/ingest", async (req, res): Promise<void> => {
         res.status(400).json({ error: `The uploaded file ${body.fileName ?? ""} was empty.`.trim() });
         return;
       }
-      text = await extractTextFromPdf(buffer);
+      const pages = await extractPdfPages(buffer);
+
+      // When the client passes page numbers (from /recipes/pdf-outline) only those pages are
+      // sent to the model. For picking a few recipes out of a cookbook this is the difference
+      // between one chunk and a dozen, and between three recipes of output and sixty.
+      if (body.pages?.length) {
+        const valid = body.pages.filter((n) => n >= 1 && n <= pages.length);
+        if (valid.length === 0) {
+          res.status(400).json({
+            error: `None of the requested pages exist in this ${pages.length}-page document.`,
+          });
+          return;
+        }
+        text = textForPages(pages, valid);
+      } else {
+        text = pages.map((p) => p.text).join("\n\n");
+      }
+
       if (!text.trim()) {
         res.status(422).json({
           error: `No extractable text was found in ${body.fileName ?? "the uploaded PDF"}. It may be a scanned image without a text layer.`,
@@ -133,6 +153,41 @@ router.post("/recipes/ingest", async (req, res): Promise<void> => {
     }
     req.log.error({ err }, "Unexpected error during recipe ingestion");
     res.status(500).json({ error: "An unexpected error occurred while extracting the recipe." });
+  }
+});
+
+router.post("/recipes/pdf-outline", async (req, res): Promise<void> => {
+  const parsed = OutlineRecipePdfBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  let buffer: Buffer;
+  try {
+    buffer = Buffer.from(parsed.data.fileBase64, "base64");
+  } catch {
+    res.status(400).json({ error: "'fileBase64' is not valid base64 data." });
+    return;
+  }
+  if (buffer.length === 0) {
+    res.status(400).json({ error: `The uploaded file ${parsed.data.fileName ?? ""} was empty.`.trim() });
+    return;
+  }
+
+  try {
+    // Deliberately AI-free: text extraction plus local heuristics. Costs nothing, so the user
+    // can browse a whole cookbook and only pay for the recipes they actually pick.
+    const { pageCount, candidates } = await outlinePdf(buffer);
+    res.json(OutlineRecipePdfResponse.parse({ pageCount, candidates }));
+  } catch (err) {
+    if (err instanceof PdfOutlineError) {
+      req.log.warn({ err: err.message }, "PDF outline failed");
+      res.status(422).json({ error: err.message });
+      return;
+    }
+    req.log.error({ err }, "Unexpected error while outlining PDF");
+    res.status(500).json({ error: "An unexpected error occurred while reading the PDF." });
   }
 });
 

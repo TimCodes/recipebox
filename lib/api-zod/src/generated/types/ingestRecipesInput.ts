@@ -15,4 +15,9 @@ export interface IngestRecipesInput {
   fileBase64?: string;
   /** Optional original file name, used only for error messages. */
   fileName?: string;
+  /**
+     * Optional, source=pdf only. Restricts extraction to these 1-based page numbers, normally the page ranges of recipes the user picked from /recipes/pdf-outline. Omit to scan the whole document. Selecting only the pages you want is dramatically cheaper and faster: it cuts both the text sent to the model and the number of recipes it has to write back.
+     * @items.minimum 1
+     */
+  pages?: number[];
 }

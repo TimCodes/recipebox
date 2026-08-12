@@ -108,11 +108,15 @@ export const CreateRecipeResponse = zod.object({
  * Runs text extraction (for PDFs) and AI-assisted structured parsing to turn free-form recipe text into one or more recipe drafts. Drafts are NOT persisted — the client must review/edit and then POST each one to /recipes to actually save it.
  * @summary Extract structured recipe(s) from pasted text or an uploaded PDF
  */
+
+
+
 export const IngestRecipesBody = zod.object({
   "source": zod.enum(['text', 'pdf']),
   "text": zod.string().optional().describe('Required when source=text. Raw pasted recipe text.'),
   "fileBase64": zod.string().optional().describe('Required when source=pdf. Base64-encoded PDF file contents (no data-URL prefix).'),
-  "fileName": zod.string().optional().describe('Optional original file name, used only for error messages.')
+  "fileName": zod.string().optional().describe('Optional original file name, used only for error messages.'),
+  "pages": zod.array(zod.number().int().min(1)).optional().describe('Optional, source=pdf only. Restricts extraction to these 1-based page numbers, normally the page ranges of recipes the user picked from \/recipes\/pdf-outline. Omit to scan the whole document. Selecting only the pages you want is dramatically cheaper and faster: it cuts both the text sent to the model and the number of recipes it has to write back.\n')
 })
 
 
@@ -135,6 +139,26 @@ export const IngestRecipesResponse = zod.object({
   "tags": zod.array(zod.string())
 }).describe('A recipe extracted from ingested content, not yet saved.')),
   "warnings": zod.array(zod.string()).describe('Non-fatal notes about the extraction (e.g. truncated input, ambiguous quantities).')
+})
+
+
+/**
+ * Extracts the PDF's text locally and locates recipe boundaries and titles with heuristics only — no model call, no tokens, no cost. The client shows the result so the user can pick which recipes to extract, and then passes those page numbers to /recipes/ingest. For the common case of taking a few recipes out of a large cookbook this avoids sending (and paying for) the entire book.
+ * @summary List the recipes found in a PDF, without calling any AI
+ */
+export const OutlineRecipePdfBody = zod.object({
+  "fileBase64": zod.string().describe('Base64-encoded PDF file contents (no data-URL prefix).'),
+  "fileName": zod.string().optional().describe('Optional original file name, used only for error messages.')
+})
+
+export const OutlineRecipePdfResponse = zod.object({
+  "pageCount": zod.number().int(),
+  "candidates": zod.array(zod.object({
+  "startPage": zod.number().int().describe('1-based page the recipe starts on.'),
+  "endPage": zod.number().int().describe('1-based last page of the recipe, derived from where the next recipe begins. Over half the recipes in a typical cookbook span more than one page, so selecting a single page would truncate them.\n'),
+  "title": zod.string().describe('Best-effort title. Heuristic and layout-dependent — always show the page range alongside it.'),
+  "snippet": zod.string().describe('First lines of the recipe, so the user can confirm the match.')
+}).describe('One recipe located in a PDF by local heuristics. No AI is involved in producing this — it exists so the user can choose what to extract before any model call is made.\n')).describe('Empty when nothing could be detected — the client should fall back to ingesting the whole document.')
 })
 
 

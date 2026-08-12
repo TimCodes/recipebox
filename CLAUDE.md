@@ -54,7 +54,8 @@ is the only automated check. Verify behavior by running the app.
 | `OPENAI_API_KEY` | `lib/openai` | **optional** — without it the app runs normally and only the three AI endpoints return 503 |
 | `OPENAI_BASE_URL` | `lib/openai` | optional; any OpenAI-compatible endpoint. Blank = api.openai.com |
 | `OPENAI_MODEL_INGEST` / `OPENAI_MODEL_RECIPE` / `OPENAI_MODEL_MEAL_PLAN` / `OPENAI_MODEL` | `lib/openai` | per-task model override; `OPENAI_MODEL` overrides all three |
-| `PORT` | api-server, vite | defaults `3000` / `5173` |
+| `PORT` | api-server | defaults `3000`. **This machine uses 3002** — 3000 is published by the `perceptacle-local-control-plane` kind cluster and 3001 is also taken |
+| `WEB_PORT` | meal-planner vite config | defaults `5173` (was `PORT`, renamed so `.env` can be shared) |
 | `BASE_PATH` | meal-planner vite config | defaults `/`; becomes vite `base` |
 | `API_PROXY_TARGET` | meal-planner vite config | defaults `http://localhost:3000`; dev `/api` proxy target |
 | `MIGRATIONS_DIR` | api-server | defaults to `lib/db/drizzle` relative to the bundled server; set explicitly in the image |
@@ -62,9 +63,11 @@ is the only automated check. Verify behavior by running the app.
 | `APP_PORT` | compose | host port for the app container (default 3000) |
 | `LOG_LEVEL`, `NODE_ENV` | api-server | pino level; `pino-pretty` transport off in production |
 
-Local values live in `.env` (gitignored, copied from `.env.example`), loaded via Node's
-`--env-file-if-exists` — there is no dotenv dependency. Vite does **not** read `.env` for
-these; `PORT`/`BASE_PATH`/`API_PROXY_TARGET` come from the shell or the defaults above.
+Local values live in `.env` (gitignored, copied from `.env.example`). The API server loads it
+via Node's `--env-file-if-exists`; the Vite config loads the same file explicitly with
+`loadEnv`, so both read their settings from one place. Before that, Vite defaulted its proxy
+to port 3000 while the API server was told to listen elsewhere, and the browser just reported
+"Failed to fetch" with nothing useful in any log.
 
 ## Workspace map
 
@@ -168,7 +171,7 @@ Anything user-scoped is a schema-wide change.
 ## API surface (`artifacts/api-server/src/routes/`)
 
 `recipes` (list/search, create, get, patch, delete, `GET /recipes/tags`, `POST /recipes/ingest`,
-`POST /recipes/generate`), `meal-plan` (list by date range, create, patch, delete,
+`POST /recipes/pdf-outline`, `POST /recipes/generate`), `meal-plan` (list by date range, create, patch, delete,
 `POST /meal-plan/generate`), `grocery-list` (list, create manual, clear week,
 `POST /grocery-list/generate`, patch, delete), `dashboard`, `healthz`.
 
@@ -213,6 +216,15 @@ unparseable text — so a bad model choice surfaces immediately, not as corrupt 
 The client is **lazy** (`getOpenAI()`): a missing `OPENAI_API_KEY` fails only the AI routes,
 with a 503, instead of preventing the server from booting at all.
 
+- **`pdf-outline.ts`** — **zero-token** PDF recipe detection. Extracts per-page text and
+  locates recipe boundaries and titles with heuristics only, so the user can pick a few
+  recipes out of a cookbook before any model call. Measured on the 206-page cookbook in
+  `attached_assets/`: 101 recipes detected (the book claims 101), 8/8 title recall on a spot
+  check, 53% of recipes span more than one page. Titles anchor on the line above the
+  serves/prep metadata line. **Always normalise text through `clean()` before matching** —
+  PDF extraction leaves invisible zero-width and non-breaking characters that silently break
+  anchored regexes. `endPage` runs to the page before the next recipe starts, because
+  selecting a single page would truncate the majority of recipes.
 - **`recipe-ingestion.ts`** — PDF text via `pdf-parse` v2, then chunked extraction
   (18k chars, ≤12 chunks, 4 concurrent, ≤60 recipes returned) merged across chunks, with
   user-facing `warnings[]` when a cap is hit.

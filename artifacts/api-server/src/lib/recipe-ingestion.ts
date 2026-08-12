@@ -1,4 +1,3 @@
-import { PDFParse } from "pdf-parse";
 import { getOpenAI, modelFor } from "@workspace/openai";
 import type { IngestedRecipe } from "@workspace/api-zod";
 
@@ -29,21 +28,6 @@ const CHUNK_CONCURRENCY = 4;
 const MAX_RECIPES_RETURNED = 60;
 
 export class RecipeIngestionError extends Error {}
-
-/** Extracts plain text from a PDF file buffer. */
-export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  const parser = new PDFParse({ data: buffer });
-  try {
-    const result = await parser.getText();
-    return result.text ?? "";
-  } catch (err) {
-    throw new RecipeIngestionError(
-      `Could not read the PDF file. It may be corrupted, password-protected, or contain no extractable text. (${err instanceof Error ? err.message : String(err)})`,
-    );
-  } finally {
-    await parser.destroy();
-  }
-}
 
 /**
  * JSON schema for a single structured recipe object, shared by every AI call that
