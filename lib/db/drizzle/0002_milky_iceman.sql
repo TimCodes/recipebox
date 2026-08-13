@@ -1,0 +1,1 @@
+ALTER TABLE "recipes" ADD COLUMN "nutrition_breakdown" jsonb;

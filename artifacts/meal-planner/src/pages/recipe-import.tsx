@@ -166,6 +166,7 @@ export default function RecipeImport() {
               }))
             : [{ name: '', quantity: 1, unit: '', category: 'produce' as const }],
           instructions: r.instructions,
+          nutrition: r.nutrition ?? undefined,
           saved: false,
         })),
       });
@@ -206,6 +207,7 @@ export default function RecipeImport() {
             unit: i.unit || null,
           })),
           instructions: draft.instructions,
+          ...(draft.nutrition ? { nutrition: draft.nutrition } : {}),
         },
       });
       update(index, { ...draft, saved: true });

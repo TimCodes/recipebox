@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Ingredient } from './ingredient';
+import type { NutritionInput } from './nutritionInput';
 
 /**
  * A recipe extracted from ingested content, not yet saved.
@@ -23,4 +24,6 @@ export interface IngestedRecipe {
   /** @nullable */
   cookMinutes: number | null;
   tags: string[];
+  /** Per-serving nutrition as printed by the source, or null when the source did not state it. Never inferred at this stage — an estimate would be indistinguishable from a printed panel once stored. */
+  nutrition?: NutritionInput | null;
 }

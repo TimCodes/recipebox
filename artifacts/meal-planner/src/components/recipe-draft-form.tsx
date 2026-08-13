@@ -31,6 +31,9 @@ export const draftSchema = z.object({
   tags: z.string(),
   ingredients: z.array(ingredientSchema).min(1, "At least one ingredient is required"),
   instructions: z.string().min(1, "Instructions are required"),
+  // Carried through the review step untouched rather than edited. Extraction may have found a
+  // per-serving panel in the source; without this it would be silently dropped on save.
+  nutrition: z.any().optional(),
   saved: z.boolean(),
 });
 

@@ -3,6 +3,7 @@ import { useLocation, useParams, Link } from 'wouter';
 import { 
   useGetRecipe, 
   useDeleteRecipe, 
+  useEstimateRecipeNutrition,
   useCreateGroceryListItem,
   getGetRecipeQueryKey, 
   getListRecipesQueryKey,
@@ -12,7 +13,7 @@ import { getWeekStart } from '@/lib/date-utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { 
   ArrowLeft, Clock, Users, ChefHat, Edit, Trash2, Tag, CheckCircle2,
-  CalendarPlus, MoreVertical
+  CalendarPlus, MoreVertical, Sparkles, Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +50,22 @@ export default function RecipeDetail() {
   });
 
   const deleteRecipe = useDeleteRecipe();
+  const estimateNutrition = useEstimateRecipeNutrition({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetRecipeQueryKey(recipeId) });
+        queryClient.invalidateQueries({ queryKey: getListRecipesQueryKey() });
+        toast({ title: "Nutrition estimated", description: "Worked out from the ingredients — treat it as approximate." });
+      },
+      onError: (err: unknown) => {
+        const message =
+          err && typeof err === 'object' && 'data' in err
+            ? ((err as { data?: { error?: string } }).data?.error ?? null)
+            : null;
+        toast({ title: "Couldn't estimate nutrition", description: message ?? "Please try again.", variant: "destructive" });
+      },
+    },
+  });
   const createGroceryItem = useCreateGroceryListItem();
   const [isAddingToGrocery, setIsAddingToGrocery] = useState(false);
 
@@ -251,6 +268,93 @@ export default function RecipeDetail() {
             </span>
           </div>
         </div>
+
+        {!recipe.nutrition && (
+          <div className="mt-8 bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-serif text-foreground">Nutrition</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                This recipe didn't come with nutrition information. It can be estimated from the ingredients.
+              </p>
+            </div>
+            <Button onClick={() => estimateNutrition.mutate({ id: recipeId, data: {} })} disabled={estimateNutrition.isPending} className="gap-2">
+              {estimateNutrition.isPending
+                ? (<><Loader2 className="h-4 w-4 animate-spin" /> Estimating...</>)
+                : (<><Sparkles className="h-4 w-4" /> Estimate nutrition</>)}
+            </Button>
+          </div>
+        )}
+
+        {recipe.nutrition && (
+          <div className="mt-8 bg-card border border-border rounded-2xl p-6 shadow-sm">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+              <h2 className="text-xl font-serif text-foreground">Nutrition <span className="text-muted-foreground text-base">per serving</span></h2>
+              <div className="flex items-center gap-2">
+                {/* The provenance label is the point: a publisher's tested panel and our own
+                    estimate must never look alike. */}
+                <Badge variant={recipe.nutrition.source === 'stated' ? 'secondary' : 'outline'}>
+                  {recipe.nutrition.source === 'stated'
+                    ? 'From the recipe'
+                    : recipe.nutrition.source === 'manual'
+                      ? 'Edited by you'
+                      : 'Estimated'}
+                </Badge>
+                {recipe.nutrition.stale && (
+                  <Badge variant="destructive">Out of date</Badge>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {([
+                ['Calories', recipe.nutrition.calories, ''],
+                ['Protein', recipe.nutrition.proteinG, 'g'],
+                ['Carbs', recipe.nutrition.carbsG, 'g'],
+                ['Fat', recipe.nutrition.fatG, 'g'],
+              ] as const).map(([label, value, unit]) => (
+                <div key={label} className="rounded-xl bg-muted/40 p-4">
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">{label}</div>
+                  <div className="text-2xl font-serif text-foreground mt-1">
+                    {value == null ? '--' : `${value}${unit}`}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {recipe.nutrition.stale && (
+              <p className="text-xs text-muted-foreground mt-4">
+                The ingredients or servings changed after these numbers were recorded, so they no
+                longer describe this recipe.
+              </p>
+            )}
+
+            {recipe.nutrition.source !== 'stated' && recipe.nutrition.source !== 'manual' && (
+              <p className="text-xs text-muted-foreground mt-4">
+                Worked out from the ingredients, not taken from the recipe. Measured against
+                recipes with published figures it lands within roughly 40%, so treat it as a
+                rough guide rather than a number to count on.
+              </p>
+            )}
+
+            {(recipe.nutrition.breakdown?.length ?? 0) > 0 && (
+              <details className="mt-4">
+                <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground">
+                  What went into this estimate
+                </summary>
+                <ul className="mt-3 space-y-1.5 text-sm">
+                  {recipe.nutrition.breakdown!.map((b, i) => (
+                    <li key={i} className="flex flex-wrap items-baseline gap-x-2 text-muted-foreground">
+                      <span className="text-foreground">{b.name}</span>
+                      <span>{b.grams == null ? '--' : `${b.grams}g`}</span>
+                      <span>{b.calories == null ? '' : `· ${b.calories} cal`}</span>
+                      {b.note && <span className="text-xs italic">— {b.note}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-12 mt-12">
           

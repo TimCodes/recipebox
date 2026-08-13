@@ -7,7 +7,8 @@
     "dev": "pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps --env-file-if-exists=../../.env ./dist/index.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "backfill-nutrition": "node --env-file-if-exists=../../.env ./dist/scripts/backfill-nutrition.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",

@@ -10,6 +10,9 @@ import {
   DeleteRecipeParams,
   IngestRecipesBody,
   OutlineRecipePdfBody,
+  EstimateRecipeNutritionParams,
+  EstimateRecipeNutritionBody,
+  EstimateRecipeNutritionResponse,
   OutlineRecipePdfResponse,
   GenerateRecipeBody,
   ListRecipesResponse,
@@ -22,11 +25,19 @@ import {
 } from "@workspace/api-zod";
 import { OpenAINotConfiguredError } from "@workspace/openai";
 import { extractRecipesFromText, RecipeIngestionError } from "../lib/recipe-ingestion";
+import { toNutrition, toNutritionColumns, isEmptyNutrition } from "../lib/nutrition";
 import { extractPdfPages, outlinePdf, textForPages, PdfOutlineError } from "../lib/pdf-outline";
+import { estimateNutrition, NutritionEstimateError } from "../lib/nutrition-estimate";
 import { generateRecipeFromPrompt, RecipeGenerationError } from "../lib/recipe-generation";
 import { retrieveRelevantRecipes } from "../lib/recipe-retrieval";
 
 const router: IRouter = Router();
+
+/** Adds the API-shaped `nutrition` object to a recipe row. */
+function withNutrition(recipe: RecipeRow) {
+  return { ...recipe, nutrition: toNutrition(recipe) };
+}
+
 
 function matchesSearch(recipe: RecipeRow, search: string): boolean {
   const needle = search.toLowerCase();
@@ -52,7 +63,7 @@ router.get("/recipes", async (req, res): Promise<void> => {
     recipes = recipes.filter((recipe) => recipe.tags.includes(query.data.tag!));
   }
 
-  res.json(ListRecipesResponse.parse(recipes));
+  res.json(ListRecipesResponse.parse(recipes.map(withNutrition)));
 });
 
 router.post("/recipes", async (req, res): Promise<void> => {
@@ -75,10 +86,15 @@ router.post("/recipes", async (req, res): Promise<void> => {
       cookMinutes: parsed.data.cookMinutes ?? null,
       tags: parsed.data.tags ?? [],
       photoUrl: parsed.data.photoUrl ?? null,
+      ...toNutritionColumns(
+        isEmptyNutrition(parsed.data.nutrition) ? null : parsed.data.nutrition,
+        parsed.data.ingredients,
+        parsed.data.servings ?? null,
+      ),
     })
     .returning();
 
-  res.status(201).json(CreateRecipeResponse.parse(recipe));
+  res.status(201).json(CreateRecipeResponse.parse(withNutrition(recipe)));
 });
 
 router.post("/recipes/ingest", async (req, res): Promise<void> => {
@@ -153,6 +169,56 @@ router.post("/recipes/ingest", async (req, res): Promise<void> => {
     }
     req.log.error({ err }, "Unexpected error during recipe ingestion");
     res.status(500).json({ error: "An unexpected error occurred while extracting the recipe." });
+  }
+});
+
+router.post("/recipes/:id/nutrition", async (req, res): Promise<void> => {
+  const params = EstimateRecipeNutritionParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const body = EstimateRecipeNutritionBody.safeParse(req.body ?? {});
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+
+  const [recipe] = await db.select().from(recipesTable).where(eq(recipesTable.id, params.data.id));
+  if (!recipe) {
+    res.status(404).json({ error: "Recipe not found" });
+    return;
+  }
+
+  // A hand-corrected value is the one thing an automated estimate must not quietly replace.
+  if (recipe.nutritionSource === "manual" && !body.data.force) {
+    res.status(409).json({
+      error: "This recipe's nutrition was edited by hand. Re-estimating would discard that; send force to replace it.",
+    });
+    return;
+  }
+
+  try {
+    const { nutrition, breakdown } = await estimateNutrition(recipe);
+    const [updated] = await db
+      .update(recipesTable)
+      .set(toNutritionColumns(nutrition, recipe.ingredients, recipe.servings, breakdown))
+      .where(eq(recipesTable.id, recipe.id))
+      .returning();
+
+    res.json(EstimateRecipeNutritionResponse.parse(withNutrition(updated)));
+  } catch (err) {
+    if (err instanceof OpenAINotConfiguredError) {
+      res.status(503).json({ error: err.message });
+      return;
+    }
+    if (err instanceof NutritionEstimateError) {
+      req.log.warn({ err: err.message }, "Nutrition estimate rejected");
+      res.status(422).json({ error: err.message });
+      return;
+    }
+    req.log.error({ err }, "Unexpected error while estimating nutrition");
+    res.status(500).json({ error: "An unexpected error occurred while estimating nutrition." });
   }
 });
 
@@ -240,7 +306,7 @@ router.get("/recipes/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(GetRecipeResponse.parse(recipe));
+  res.json(GetRecipeResponse.parse(withNutrition(recipe)));
 });
 
 router.patch("/recipes/:id", async (req, res): Promise<void> => {
@@ -256,9 +322,31 @@ router.patch("/recipes/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  // `nutrition` is an API-shaped object, not a column, so it cannot go straight into .set().
+  const { nutrition, ...fields } = parsed.data;
+
+  const [existing] = await db.select().from(recipesTable).where(eq(recipesTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Recipe not found" });
+    return;
+  }
+
+  const updates: Record<string, unknown> = { ...fields };
+
+  if (nutrition !== undefined) {
+    // Hash against what the recipe will look like *after* this update, not before, or the
+    // values would be marked stale the moment they are written.
+    const ingredients = fields.ingredients ?? existing.ingredients;
+    const servings = fields.servings !== undefined ? fields.servings : existing.servings;
+    Object.assign(
+      updates,
+      toNutritionColumns(isEmptyNutrition(nutrition) ? null : nutrition, ingredients, servings),
+    );
+  }
+
   const [recipe] = await db
     .update(recipesTable)
-    .set(parsed.data)
+    .set(updates)
     .where(eq(recipesTable.id, params.data.id))
     .returning();
 
@@ -267,7 +355,7 @@ router.patch("/recipes/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(UpdateRecipeResponse.parse(recipe));
+  res.json(UpdateRecipeResponse.parse(withNutrition(recipe)));
 });
 
 router.delete("/recipes/:id", async (req, res): Promise<void> => {

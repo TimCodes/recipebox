@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Ingredient } from './ingredient';
+import type { Nutrition } from './nutrition';
 
 export interface Recipe {
   id: number;
@@ -25,4 +26,5 @@ export interface Recipe {
   photoUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
+  nutrition?: Nutrition | null;
 }

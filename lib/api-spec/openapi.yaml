@@ -112,6 +112,68 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /recipes/{id}/nutrition:
+    post:
+      operationId: estimateRecipeNutrition
+      tags: [recipes]
+      summary: Estimate per-serving nutrition for a recipe from its ingredients
+      description: >
+        Derives per-serving macros for a recipe whose source never stated them. Deliberately a
+        separate, explicit call rather than something that happens on save: it costs money, so
+        it should be something the user asks for and can repeat, not a hidden charge on every
+        edit.
+
+        The model is asked only for a gram weight and a per-100g composition per ingredient;
+        all summing and the per-serving division happen server-side. Models are unreliable at
+        multi-step arithmetic, and a wrong total looks exactly like a right one.
+
+        Overwrites any previous derived value. Refuses to overwrite a `manual` correction
+        unless `force` is set.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EstimateNutritionInput"
+      responses:
+        "200":
+          description: The recipe, with freshly estimated nutrition.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Recipe"
+        "404":
+          description: Recipe not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The recipe has a manual correction and `force` was not set.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: >
+            No usable estimate could be produced — the recipe has no servings, or the result
+            failed the plausibility checks.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI features are not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /recipes/pdf-outline:
     post:
       operationId: outlineRecipePdf
@@ -575,6 +637,81 @@ components:
       type: string
       enum: [breakfast, lunch, dinner, snack]
 
+    NutritionSource:
+      type: string
+      enum: [stated, estimated, computed, manual]
+      description: >
+        Where the numbers came from. `stated` means the source document printed them (a
+        cookbook's "PER SERVING" panel) — the most trustworthy case, since it reflects the
+        recipe as actually tested. `estimated` and `computed` are derived by us. `manual` is a
+        user correction and must never be overwritten automatically. This is surfaced in the
+        UI, so a tested panel is never presented as though it were our guess.
+
+    NutritionInput:
+      type: object
+      description: Per-serving macros. All values may be null when unknown; never guess to fill them in.
+      required: [calories, proteinG, carbsG, fatG, source]
+      properties:
+        calories: { type: ["integer", "null"], description: kcal per serving }
+        proteinG: { type: ["number", "null"] }
+        carbsG: { type: ["number", "null"] }
+        fatG: { type: ["number", "null"] }
+        source:
+          $ref: "#/components/schemas/NutritionSource"
+        extras:
+          type: ["object", "null"]
+          additionalProperties: true
+          description: >
+            Anything beyond the four macros that the source happened to provide — fiber,
+            sugars, saturated fat, cholesterol, sodium. Kept because it costs nothing to
+            retain and is otherwise discarded permanently.
+
+    EstimateNutritionInput:
+      type: object
+      properties:
+        force:
+          type: boolean
+          description: >
+            Replace a manual correction. Without it a hand-edited value is preserved, because
+            silently overwriting someone's correction with a machine estimate is worse than
+            refusing.
+
+    NutritionIngredientBreakdown:
+      type: object
+      description: >
+        What the estimate assumed for one ingredient. Stored so a surprising total can be
+        explained — "why is this 900 calories?" is answerable with "it assumed 200g of olive
+        oil" — and so a bad assumption is visible rather than buried in a single number.
+      required: [name, grams, calories, proteinG, carbsG, fatG]
+      properties:
+        name: { type: string, description: The ingredient as the estimator understood it. }
+        grams: { type: ["number", "null"], description: Assumed weight for the stated quantity. }
+        calories: { type: ["number", "null"] }
+        proteinG: { type: ["number", "null"] }
+        carbsG: { type: ["number", "null"] }
+        fatG: { type: ["number", "null"] }
+        note: { type: ["string", "null"], description: Optional caveat, e.g. "assumed drained weight". }
+
+    Nutrition:
+      allOf:
+        - $ref: "#/components/schemas/NutritionInput"
+        - type: object
+          required: [stale, updatedAt]
+          properties:
+            stale:
+              type: boolean
+              description: >
+                True when the recipe's ingredients or servings have changed since these
+                numbers were recorded, so they no longer describe the current recipe. Computed
+                on read by comparing a hash of the inputs — never a stored flag, which would
+                have to be maintained by every write path and would eventually be wrong.
+            updatedAt: { type: ["string", "null"], format: date-time }
+            breakdown:
+              type: ["array", "null"]
+              items:
+                $ref: "#/components/schemas/NutritionIngredientBreakdown"
+              description: Present for derived values; absent when the source stated them directly.
+
     Ingredient:
       type: object
       required: [name, category]
@@ -618,6 +755,10 @@ components:
         photoUrl: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+        nutrition:
+          oneOf:
+            - $ref: "#/components/schemas/Nutrition"
+            - type: "null"
 
     RecipeInput:
       type: object
@@ -637,6 +778,8 @@ components:
           type: array
           items: { type: string }
         photoUrl: { type: string }
+        nutrition:
+          $ref: "#/components/schemas/NutritionInput"
 
     IngestSourceType:
       type: string
@@ -741,6 +884,14 @@ components:
         tags:
           type: array
           items: { type: string }
+        nutrition:
+          oneOf:
+            - $ref: "#/components/schemas/NutritionInput"
+            - type: "null"
+          description: >
+            Per-serving nutrition as printed by the source, or null when the source did not
+            state it. Never inferred at this stage — an estimate would be indistinguishable
+            from a printed panel once stored.
 
     IngestRecipesResult:
       type: object
@@ -852,6 +1003,11 @@ components:
           type: array
           items: { type: string }
         photoUrl: { type: ["string", "null"] }
+        nutrition:
+          oneOf:
+            - $ref: "#/components/schemas/NutritionInput"
+            - type: "null"
+          description: Setting this marks the values as a manual correction unless `source` says otherwise.
 
     RecipeSummary:
       type: object
