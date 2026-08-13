@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { Nutrition } from './nutrition';
 
 export interface RecipeSummary {
   id: number;
@@ -18,4 +19,6 @@ export interface RecipeSummary {
   /** @nullable */
   cookMinutes: number | null;
   tags: string[];
+  /** Included so a meal plan can total a day without fetching every recipe in full. Null when the recipe has no nutrition recorded, which the client must show as an incomplete total rather than treating as zero. */
+  nutrition?: Nutrition | null;
 }

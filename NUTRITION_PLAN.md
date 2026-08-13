@@ -3,9 +3,9 @@
 Give every recipe per-serving macros: **calories, protein, carbohydrates, fat**. Take them
 from the source when the source states them; derive them when it doesn't.
 
-Status: **Phases 1, 2 and 4 complete — all 34 recipes now have nutrition** (31 stated, 3
-estimated). Remaining: meal-plan daily totals, and a decision on phase 3 that the measurements
-below have made much less clear-cut.
+Status: **Phases 1, 2 and 4 complete — all 34 recipes have nutrition** (31 stated, 3
+estimated), and the meal plan totals each day. Only phase 3 remains, and the measurements
+below make it a much less obvious win than the plan originally assumed.
 
 ---
 
@@ -282,7 +282,10 @@ rather than obvious failures:
    to the last alternative only, so **fat and carbs silently parsed as null** whenever the
    first alternative matched. Wrapping the label in a non-capturing group fixed it.
 
-Still to do here: meal-plan daily totals, which need `nutrition` on `RecipeSummary`.
+Meal-plan daily totals are done: `RecipeSummary` now carries `nutrition`, so a week's plan
+totals without fetching every recipe in full. An entry's own `servings` multiplies its
+contribution, and days containing a recipe with no nutrition show "2 of 3 meals" rather than a
+confident total that quietly omits one.
 
 <details>
 <summary>Original phase 4 plan</summary>

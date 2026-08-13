@@ -101,6 +101,34 @@ export default function MealPlan() {
     };
   });
 
+  /**
+   * Totals a day's planned meals.
+   *
+   * `known` vs the entry count is the point: a recipe with no nutrition recorded contributes
+   * nothing, and showing a confident total that quietly omits it would understate the day.
+   * The UI says how many of the day's meals the figure actually covers.
+   *
+   * An entry's own `servings` overrides one portion — planning two servings of something
+   * doubles its contribution.
+   */
+  const getDayTotals = (date: string) => {
+    const dayEntries = entries.filter(e => e.date.slice(0, 10) === date);
+    let calories = 0, proteinG = 0, carbsG = 0, fatG = 0, known = 0;
+
+    for (const entry of dayEntries) {
+      const n = entry.recipe.nutrition;
+      if (!n || n.calories == null) continue;
+      const portions = entry.servings ?? 1;
+      calories += n.calories * portions;
+      proteinG += (n.proteinG ?? 0) * portions;
+      carbsG += (n.carbsG ?? 0) * portions;
+      fatG += (n.fatG ?? 0) * portions;
+      known += 1;
+    }
+
+    return { calories: Math.round(calories), proteinG, carbsG, fatG, known, total: dayEntries.length };
+  };
+
   const getEntryForSlot = (date: string, slot: MealSlot) => {
     return entries.find(e => e.date.slice(0, 10) === date && e.mealSlot === slot);
   };
@@ -255,6 +283,41 @@ export default function MealPlan() {
                   })}
                 </div>
               ))}
+
+              <div className="grid grid-cols-[100px_repeat(7,1fr)] border-t-2 border-border bg-accent/20">
+                <div className="p-3 border-r border-border flex items-center justify-center">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-center">
+                    Per day
+                  </span>
+                </div>
+                {days.map(day => {
+                  const totals = getDayTotals(day.date);
+                  if (totals.total === 0) {
+                    return <div key={`tot-${day.date}`} className="p-3 border-r border-border last:border-r-0" />;
+                  }
+                  return (
+                    <div
+                      key={`tot-${day.date}`}
+                      className={`p-3 border-r border-border last:border-r-0 text-center ${day.isToday ? 'bg-primary/5' : ''}`}
+                    >
+                      <div className="text-lg font-serif text-foreground">
+                        {totals.known === 0 ? '--' : `${totals.calories}`}
+                        {totals.known > 0 && <span className="text-xs text-muted-foreground ml-1">cal</span>}
+                      </div>
+                      {totals.known > 0 && (
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          {Math.round(totals.proteinG)}p · {Math.round(totals.carbsG)}c · {Math.round(totals.fatG)}f
+                        </div>
+                      )}
+                      {totals.known < totals.total && (
+                        <div className="text-[10px] text-muted-foreground/80 mt-1" title="Some meals have no nutrition recorded">
+                          {totals.known} of {totals.total} meals
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
