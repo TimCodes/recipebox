@@ -1022,6 +1022,14 @@ components:
         tags:
           type: array
           items: { type: string }
+        nutrition:
+          oneOf:
+            - $ref: "#/components/schemas/Nutrition"
+            - type: "null"
+          description: >
+            Included so a meal plan can total a day without fetching every recipe in full.
+            Null when the recipe has no nutrition recorded, which the client must show as an
+            incomplete total rather than treating as zero.
 
     MealPlanEntry:
       type: object

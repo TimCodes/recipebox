@@ -173,7 +173,9 @@ full schema+data dump.
   produces wrong totals that look exactly like right ones. Measured mean error is **~37%**, so
   estimates are labelled approximate in the UI and the per-ingredient breakdown is shown.
   `parseNutritionPanel()` reads a printed panel with no AI at all; `scripts/backfill-nutrition.ts`
-  uses it to fill recipes from their source cookbook for free.
+  uses it to fill recipes from their source cookbook for free. `RecipeSummary` carries
+  `nutrition` so the meal plan can total a day without loading every recipe; a day whose meals
+  aren't all covered reports "2 of 3 meals" instead of a total that silently omits one.
 - **`grocery_list_items`** — scoped by `weekStart` (`mode:"string"`), `source` is `auto` or
   `manual`, `recipeSources` is a denormalized `jsonb` snapshot of `{id, title}` so tags survive
   a source recipe being renamed or deleted.
