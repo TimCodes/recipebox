@@ -155,7 +155,12 @@ full schema+data dump.
 ## Data model (`lib/db/src/schema/`)
 
 - **`recipes`** — ingredients are a `jsonb` array of `Ingredient` (`name`, `quantity`, `unit`,
-  `category`) on the row itself; there is no ingredients table. `tags` is a `text[]`.
+  `category`) on the row itself; there is no ingredients table. **`quantity` is always the total
+  the recipe needs, never the size of one item** — `4 (5-ounce) salmon fillets` is
+  `quantity: 4, unit: "fillets", name: "5-ounce salmon fillets"`. Extraction used to keep the
+  size and drop the count, which silently turned four fillets into one; see
+  `.agents/memory/llm-extraction-flattens-counted-quantities.md`. Model output is passed
+  through `normalizeIngredient()` so a literal `"null"` string never lands in `unit`. `tags` is a `text[]`.
   `photoUrl` is a plain string (static files under `artifacts/meal-planner/public/images/`) —
   there is no upload/object-storage path.
 - **`meal_plan_entries`** — `date` (`mode:"string"`), `mealSlot` enum

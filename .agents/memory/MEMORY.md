@@ -9,3 +9,4 @@
 - [A global no-store breaks static asset caching](global-no-store-breaks-static-assets.md) — scope API cache headers to /api once the same process starts serving a frontend build; the failure is silent.
 - [Migration baselining for a push-built database](migration-baselining-existing-database.md) — a schema created by drizzle-kit push has no journal, so migration 0000 fails against it; restore data-only into a freshly migrated database.
 - [Data-only dumps must exclude the migration journal](data-only-dumps-exclude-migration-journal.md) — including __drizzle_migrations aborts the whole restore on a duplicate key, so the backup looks fine and recovers nothing.
+- [LLM extraction drops counts from "N (X-unit) item"](llm-extraction-flattens-counted-quantities.md) — four fillets become one, and the wrong line looks perfectly plausible; say quantity means the total, in the field description AND the prompt.
