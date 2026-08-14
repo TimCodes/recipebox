@@ -47,9 +47,21 @@ export const RECIPE_OBJECT_SCHEMA = {
       items: {
         type: "object",
         properties: {
-          name: { type: "string" },
-          quantity: { type: ["number", "null"] },
-          unit: { type: ["string", "null"] },
+          name: {
+            type: "string",
+            description:
+              "The ingredient. When the recipe states a per-item size alongside a count, fold that size into the name — '4 (5-ounce) salmon fillets' becomes name '5-ounce salmon fillets' with quantity 4 — so the total weight stays recoverable. Do not repeat the unit word in the name.",
+          },
+          quantity: {
+            type: ["number", "null"],
+            description:
+              "The TOTAL amount the whole recipe needs — never the size of a single item. Recipes often write a count next to a per-item size, e.g. '4 (5-ounce) salmon fillets' or '2 (15-ounce) cans chickpeas'. There the total is 4 fillets and 2 cans; 5 and 15 are item sizes and must not be used as the quantity. Null only if no amount is given at all.",
+          },
+          unit: {
+            type: ["string", "null"],
+            description:
+              "Unit for the quantity. For counted items use the item word ('fillets', 'cans', 'cloves') or null, never the unit from the per-item size. Leave null if the item word is already the end of the name.",
+          },
           category: { type: "string", enum: INGREDIENT_CATEGORIES },
         },
         required: ["name", "quantity", "unit", "category"],
@@ -110,6 +122,20 @@ const RECIPE_EXTRACTION_SCHEMA = {
   required: ["recipes"],
   additionalProperties: false,
 } as const;
+
+/**
+ * Normalises an extracted ingredient.
+ *
+ * Models occasionally emit the *string* "null" (or "none", or an empty string) for a unit that
+ * should simply be absent. It reads as a real unit everywhere downstream — grocery aggregation
+ * matches on name+unit, so `"null"` silently becomes its own shopping category — and it is
+ * invisible in any UI that just prints the value.
+ */
+function normalizeIngredient<T extends { unit?: string | null; name: string }>(ingredient: T): T {
+  const unit = ingredient.unit?.trim() ?? null;
+  const bogus = unit === null || unit === "" || /^(null|undefined|none|n\/a)$/i.test(unit);
+  return { ...ingredient, unit: bogus ? null : unit, name: ingredient.name.trim() };
+}
 
 /** Shape the extraction model returns for `nutrition` — macros plus whatever else the panel listed. */
 interface RawNutrition {
@@ -193,7 +219,10 @@ async function extractRecipesFromChunk(chunk: string): Promise<IngestedRecipe[]>
           "recipe, extract its title, an optional short description, ingredients (name, quantity as a number when " +
           "stated, unit, and best-guess category), full instructions, servings, prep time in minutes, cook time in " +
           "minutes, and any relevant tags (cuisine, meal type, diet). If the text prints a per-serving nutrition panel, copy those numbers into `nutrition` exactly as stated; if it does not, set `nutrition` to null — never compute or estimate it. Use null for any field that cannot be determined " +
-          "from the text. If this text contains no recognizable recipe (e.g. it's front matter, an index, an unrelated " +
+          "from the text. An ingredient's quantity is always the total the recipe needs: for a line like " +
+          "'4 (5-ounce) salmon fillets' the quantity is 4 and the name should carry the size ('5-ounce salmon " +
+          "fillets'), because recording 5 would silently turn four fillets into one. " +
+          "If this text contains no recognizable recipe (e.g. it's front matter, an index, an unrelated " +
           "section, blank, or gibberish), return an empty recipes array — do not invent content.",
       },
       { role: "user", content: chunk },
@@ -224,6 +253,7 @@ async function extractRecipesFromChunk(chunk: string): Promise<IngestedRecipe[]>
     .filter((r) => r.title?.trim() && r.instructions?.trim())
     .map((r) => ({
       ...r,
+      ingredients: (r.ingredients ?? []).map(normalizeIngredient),
       nutrition: toNutritionInput((r as { nutrition?: RawNutrition | null }).nutrition) ?? null,
     }));
 }
